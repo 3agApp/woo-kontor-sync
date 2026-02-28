@@ -381,13 +381,21 @@
         testConnection: function (e) {
             e.preventDefault();
 
+            var apiHost = $('#wks-api-host').val();
+            var apiKey = $('#wks-api-key').val();
+
+            if (!apiHost || !apiKey) {
+                WKS.toast('Please enter both API Host and API Key', 'error');
+                return;
+            }
+
             const $btn = $('#wssc-test-connection');
             const originalHtml = $btn.html();
 
             $btn.prop('disabled', true)
                 .html('<span class="wssc-spinner"></span> ' + wks_admin.strings.testing);
 
-            this.ajax('wks_test_connection', {})
+            this.ajax('wks_test_connection', { api_host: apiHost, api_key: apiKey })
                 .done(function (response) {
                     if (response.success) {
                         WKS.toast(response.data.message, 'success');
