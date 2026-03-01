@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.0.3 =
+* Added Hersteller (Manufacturer) filter in settings to import only products from selected manufacturers
 
 = 1.0.2 =
 * Version bump

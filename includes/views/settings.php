@@ -143,6 +143,42 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
+        <!-- Manufacturer Filter -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-filter"></span>
+                    <?php esc_html_e('Hersteller (Manufacturer) Filter', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-form-row">
+                    <label for="wks-manufacturer-input" class="wssc-label">
+                        <?php esc_html_e('Manufacturers to Import', 'woo-kontor-sync'); ?>
+                    </label>
+                    <div class="wssc-tags-wrapper" id="wks-manufacturer-tags-wrapper">
+                        <?php
+                        $manufacturers = array_filter(array_map('trim', explode(',', $manufacturer_filter)));
+                        foreach ($manufacturers as $mfr): ?>
+                            <span class="wssc-tag">
+                                <?php echo esc_html($mfr); ?>
+                                <button type="button" class="wssc-tag-remove" data-value="<?php echo esc_attr($mfr); ?>">&times;</button>
+                            </span>
+                        <?php endforeach; ?>
+                        <input type="text"
+                               id="wks-manufacturer-input"
+                               class="wssc-tags-input"
+                               placeholder="<?php esc_attr_e('Type manufacturer name and press Enter…', 'woo-kontor-sync'); ?>"
+                               <?php disabled(!$license_valid); ?>>
+                    </div>
+                    <input type="hidden" id="wks-manufacturer-filter" name="manufacturer_filter" value="<?php echo esc_attr($manufacturer_filter); ?>">
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('Only products from these manufacturers (Hersteller) will be imported or updated. Leave empty to import all products.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Configuration -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">

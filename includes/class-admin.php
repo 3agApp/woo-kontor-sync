@@ -165,6 +165,17 @@ class WKS_Admin {
             'type'    => 'boolean',
             'default' => false,
         ]);
+
+        register_setting('wks_settings', 'wks_manufacturer_filter', [
+            'type'              => 'string',
+            'sanitize_callback' => function ($value) {
+                if (is_array($value)) {
+                    return implode(',', array_map('sanitize_text_field', array_filter($value)));
+                }
+                return sanitize_text_field($value);
+            },
+            'default'           => '',
+        ]);
     }
 
     /**
@@ -219,7 +230,8 @@ class WKS_Admin {
         $image_prefix_url = get_option('wks_image_prefix_url', '');
         $page_size        = get_option('wks_page_size', 500);
         $max_pages        = get_option('wks_max_pages', 2);
-        $enabled          = get_option('wks_enabled', false);
+        $enabled              = get_option('wks_enabled', false);
+        $manufacturer_filter  = get_option('wks_manufacturer_filter', '');
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

@@ -141,7 +141,8 @@ class WKS_Ajax {
         $page_size        = isset($_POST['page_size']) ? intval($_POST['page_size']) : 500;
         $max_pages        = isset($_POST['max_pages']) ? intval($_POST['max_pages']) : 2;
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
-        $enabled          = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
+        $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
+        $manufacturer_filter  = isset($_POST['manufacturer_filter']) ? sanitize_text_field(wp_unslash($_POST['manufacturer_filter'])) : '';
 
         // Validate page_size
         $page_size = max(1, min(2000, $page_size));
@@ -155,6 +156,7 @@ class WKS_Ajax {
         update_option('wks_max_pages', $max_pages);
         update_option('wks_schedule_interval', $interval);
         update_option('wks_enabled', $enabled);
+        update_option('wks_manufacturer_filter', $manufacturer_filter);
 
         // Handle scheduling
         if ($enabled && !empty($api_host) && !empty($api_key)) {

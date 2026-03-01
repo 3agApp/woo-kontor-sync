@@ -90,6 +90,9 @@
             $('#wssc-settings-form').on('submit', this.saveSettings.bind(this));
             $('#wssc-test-connection').on('click', this.testConnection.bind(this));
 
+            // Manufacturer tags
+            this.initManufacturerTags();
+
             // License
             $('#wssc-license-form').on('submit', this.activateLicense.bind(this));
             $('#wssc-deactivate-license').on('click', this.deactivateLicense.bind(this));
@@ -337,6 +340,94 @@
         },
 
         /**
+         * Initialize manufacturer tag input
+         */
+        initManufacturerTags: function () {
+            var self = this;
+            var $wrapper = $('#wks-manufacturer-tags-wrapper');
+            var $input = $('#wks-manufacturer-input');
+            var $hidden = $('#wks-manufacturer-filter');
+
+            if (!$wrapper.length) return;
+
+            // Focus input when clicking wrapper
+            $wrapper.on('click', function () {
+                $input.focus();
+            });
+
+            // Add tag on Enter or comma
+            $input.on('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    var val = $.trim($input.val().replace(/,/g, ''));
+                    if (val) {
+                        self.addManufacturerTag(val);
+                        $input.val('');
+                    }
+                }
+                // Remove last tag on Backspace if input is empty
+                if (e.key === 'Backspace' && $input.val() === '') {
+                    $wrapper.find('.wssc-tag:last .wssc-tag-remove').trigger('click');
+                }
+            });
+
+            // Also add on blur
+            $input.on('blur', function () {
+                var val = $.trim($input.val().replace(/,/g, ''));
+                if (val) {
+                    self.addManufacturerTag(val);
+                    $input.val('');
+                }
+            });
+
+            // Remove tag
+            $wrapper.on('click', '.wssc-tag-remove', function (e) {
+                e.stopPropagation();
+                $(this).closest('.wssc-tag').remove();
+                self.updateManufacturerHidden();
+            });
+        },
+
+        /**
+         * Add a manufacturer tag
+         */
+        addManufacturerTag: function (value) {
+            var $wrapper = $('#wks-manufacturer-tags-wrapper');
+            var $input = $('#wks-manufacturer-input');
+
+            // Check for duplicates (case-insensitive)
+            var exists = false;
+            $wrapper.find('.wssc-tag-remove').each(function () {
+                if ($(this).data('value').toString().toLowerCase() === value.toLowerCase()) {
+                    exists = true;
+                }
+            });
+            if (exists) return;
+
+            var $tag = $('<span class="wssc-tag"></span>')
+                .text(value)
+                .append(
+                    $('<button type="button" class="wssc-tag-remove"></button>')
+                        .attr('data-value', value)
+                        .html('&times;')
+                );
+
+            $tag.insertBefore($input);
+            this.updateManufacturerHidden();
+        },
+
+        /**
+         * Update hidden manufacturer field from tags
+         */
+        updateManufacturerHidden: function () {
+            var values = [];
+            $('#wks-manufacturer-tags-wrapper .wssc-tag-remove').each(function () {
+                values.push($(this).data('value'));
+            });
+            $('#wks-manufacturer-filter').val(values.join(','));
+        },
+
+        /**
          * Save settings
          */
         saveSettings: function (e) {
@@ -356,7 +447,8 @@
                 page_size: $('#wks-page-size').val(),
                 max_pages: $('#wks-max-pages').val(),
                 schedule_interval: $('#wks-schedule-interval').val(),
-                enabled: $('#wks-enabled').is(':checked')
+                enabled: $('#wks-enabled').is(':checked'),
+                manufacturer_filter: $('#wks-manufacturer-filter').val()
             };
 
             this.ajax('wks_save_settings', data)

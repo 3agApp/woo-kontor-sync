@@ -271,6 +271,25 @@ class WKS_Sync {
     }
 
     /**
+     * Check if a product passes the manufacturer filter
+     */
+    private function passes_manufacturer_filter($kontor_product) {
+        $filter = get_option('wks_manufacturer_filter', '');
+        if (empty($filter)) {
+            return true; // No filter set, allow all
+        }
+
+        $allowed = array_filter(array_map('trim', explode(',', strtolower($filter))));
+        if (empty($allowed)) {
+            return true;
+        }
+
+        $hersteller = isset($kontor_product['Hersteller']) ? strtolower(trim($kontor_product['Hersteller'])) : '';
+
+        return in_array($hersteller, $allowed, true);
+    }
+
+    /**
      * Process a batch of Kontor products
      */
     private function process_batch($batch) {
@@ -278,6 +297,12 @@ class WKS_Sync {
 
         foreach ($batch as $kontor_product) {
             $this->stats['processed']++;
+
+            // Check manufacturer filter
+            if (!$this->passes_manufacturer_filter($kontor_product)) {
+                $this->stats['skipped']++;
+                continue;
+            }
 
             try {
                 $this->import_or_update_product($kontor_product, $image_prefix);

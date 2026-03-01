@@ -1782,3 +1782,79 @@
         gap: 8px;
     }
 }
+
+/* ===================== */
+/* Manufacturer Tag Input */
+/* ===================== */
+
+.wssc-tags-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--wssc-gray-300);
+    border-radius: var(--wssc-radius);
+    background: #fff;
+    cursor: text;
+    transition: var(--wssc-transition);
+    min-height: 46px;
+}
+
+.wssc-tags-wrapper:focus-within {
+    border-color: var(--wssc-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.wssc-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--wssc-primary-light);
+    color: var(--wssc-primary);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.wssc-tag-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin-left: 2px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--wssc-primary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: var(--wssc-transition);
+}
+
+.wssc-tag-remove:hover {
+    background: var(--wssc-primary);
+    color: #fff;
+}
+
+.wssc-tags-input {
+    flex: 1;
+    min-width: 180px;
+    border: none;
+    outline: none;
+    padding: 4px 0;
+    font-size: 14px;
+    background: transparent;
+    color: var(--wssc-gray-800);
+}
+
+.wssc-tags-input::placeholder {
+    color: var(--wssc-gray-400);
+}
