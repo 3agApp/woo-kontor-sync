@@ -175,6 +175,13 @@ if (!defined('ABSPATH')) {
                     <p class="wssc-help-text">
                         <?php esc_html_e('Only products from these manufacturers (Hersteller) will be imported or updated. Leave empty to import all products.', 'woo-kontor-sync'); ?>
                     </p>
+                    <div class="wssc-fetch-manufacturers">
+                        <button type="button" id="wssc-fetch-manufacturers" class="wssc-btn wssc-btn-secondary wssc-btn-sm" <?php disabled(!$license_valid); ?>>
+                            <span class="dashicons dashicons-download"></span>
+                            <?php esc_html_e('Fetch Available Manufacturers from API', 'woo-kontor-sync'); ?>
+                        </button>
+                        <div id="wssc-manufacturers-list" class="wssc-manufacturers-list" style="display:none;"></div>
+                    </div>
                 </div>
             </div>
         </div>

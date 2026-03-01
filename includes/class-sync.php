@@ -290,6 +290,63 @@ class WKS_Sync {
     }
 
     /**
+     * Fetch all unique manufacturers from the Kontor API
+     */
+    public function fetch_manufacturers() {
+        $api_host  = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key   = get_option('wks_api_key', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $all_manufacturers = [];
+        $skip              = 0;
+        $page_size         = 2000;
+        $max_pages         = 50;
+        $page              = 0;
+
+        while ($page < $max_pages) {
+            $result = $this->fetch_page($api_host, $api_key, $skip, $page_size);
+
+            if (!$result['success']) {
+                return $result;
+            }
+
+            $page_data   = $result['data'];
+            $total_count = $result['total_count'];
+
+            foreach ($page_data as $product) {
+                if (!empty($product['Hersteller'])) {
+                    $name = trim($product['Hersteller']);
+                    $key  = strtolower($name);
+                    if (!isset($all_manufacturers[$key])) {
+                        $all_manufacturers[$key] = $name;
+                    }
+                }
+            }
+
+            $page++;
+            $skip += $page_size;
+
+            if (count($page_data) < $page_size || $skip >= $total_count) {
+                break;
+            }
+        }
+
+        ksort($all_manufacturers);
+
+        return [
+            'success'       => true,
+            'manufacturers' => array_values($all_manufacturers),
+            'total_products'=> $total_count,
+        ];
+    }
+
+    /**
      * Process a batch of Kontor products
      */
     private function process_batch($batch) {

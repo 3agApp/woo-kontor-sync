@@ -28,6 +28,7 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_toggle_sync', [$this, 'toggle_sync']);
         add_action('wp_ajax_wks_check_update', [$this, 'check_update']);
         add_action('wp_ajax_wks_install_update', [$this, 'install_update']);
+        add_action('wp_ajax_wks_fetch_manufacturers', [$this, 'fetch_manufacturers']);
     }
 
     /**
@@ -90,6 +91,30 @@ class WKS_Ajax {
             wp_send_json_error([
                 'message' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Fetch available manufacturers from Kontor API
+     */
+    public function fetch_manufacturers() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        set_time_limit(0);
+        wp_raise_memory_limit('admin');
+
+        $result = WKS()->sync->fetch_manufacturers();
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
         }
     }
 

@@ -1858,3 +1858,61 @@
 .wssc-tags-input::placeholder {
     color: var(--wssc-gray-400);
 }
+
+/* Fetch Manufacturers */
+.wssc-fetch-manufacturers {
+    margin-top: 12px;
+}
+
+.wssc-manufacturers-list {
+    margin-top: 12px;
+    padding: 16px;
+    background: var(--wssc-gray-50);
+    border: 1px solid var(--wssc-gray-200);
+    border-radius: var(--wssc-radius);
+}
+
+.wssc-mfr-count {
+    font-size: 13px;
+    color: var(--wssc-gray-600);
+    margin: 0 0 10px 0;
+}
+
+.wssc-mfr-empty {
+    font-size: 13px;
+    color: var(--wssc-gray-500);
+    margin: 0;
+}
+
+.wssc-mfr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.wssc-mfr-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 14px;
+    background: #fff;
+    border: 1px solid var(--wssc-gray-300);
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--wssc-gray-700);
+    cursor: pointer;
+    transition: var(--wssc-transition);
+}
+
+.wssc-mfr-chip:hover:not(:disabled) {
+    border-color: var(--wssc-primary);
+    color: var(--wssc-primary);
+    background: var(--wssc-primary-light);
+}
+
+.wssc-mfr-chip-added,
+.wssc-mfr-chip-added:hover {
+    background: var(--wssc-success-light);
+    border-color: var(--wssc-success);
+    color: var(--wssc-success);
+    cursor: default;
+}

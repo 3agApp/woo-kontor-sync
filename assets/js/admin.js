@@ -92,6 +92,7 @@
 
             // Manufacturer tags
             this.initManufacturerTags();
+            $('#wssc-fetch-manufacturers').on('click', this.fetchManufacturers.bind(this));
 
             // License
             $('#wssc-license-form').on('submit', this.activateLicense.bind(this));
@@ -425,6 +426,64 @@
                 values.push($(this).data('value'));
             });
             $('#wks-manufacturer-filter').val(values.join(','));
+        },
+
+        /**
+         * Fetch available manufacturers from API
+         */
+        fetchManufacturers: function (e) {
+            e.preventDefault();
+            var self = this;
+
+            var $btn = $('#wssc-fetch-manufacturers');
+            var $list = $('#wssc-manufacturers-list');
+            var originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Fetching manufacturers…');
+            $list.hide().empty();
+
+            this.ajax('wks_fetch_manufacturers', {})
+                .done(function (response) {
+                    if (response.success && response.data.manufacturers) {
+                        var manufacturers = response.data.manufacturers;
+                        if (manufacturers.length === 0) {
+                            $list.html('<p class="wssc-mfr-empty">No manufacturers found in API.</p>').show();
+                            return;
+                        }
+
+                        var html = '<p class="wssc-mfr-count">' + manufacturers.length + ' manufacturer(s) found. Click to add:</p>';
+                        html += '<div class="wssc-mfr-chips">';
+                        manufacturers.forEach(function (mfr) {
+                            html += '<button type="button" class="wssc-mfr-chip" data-value="' + $('<span>').text(mfr).html() + '">' + $('<span>').text(mfr).html() + '</button>';
+                        });
+                        html += '</div>';
+                        $list.html(html).show();
+
+                        // Bind click on chips
+                        $list.find('.wssc-mfr-chip').on('click', function () {
+                            var val = $(this).data('value');
+                            self.addManufacturerTag(val);
+                            $(this).addClass('wssc-mfr-chip-added').prop('disabled', true);
+                        });
+
+                        // Mark already-added manufacturers
+                        var current = $('#wks-manufacturer-filter').val().toLowerCase().split(',').map(function (v) { return $.trim(v); });
+                        $list.find('.wssc-mfr-chip').each(function () {
+                            if (current.indexOf($(this).data('value').toString().toLowerCase()) !== -1) {
+                                $(this).addClass('wssc-mfr-chip-added').prop('disabled', true);
+                            }
+                        });
+                    } else {
+                        WKS.toast(response.data.message || 'Failed to fetch manufacturers', 'error');
+                    }
+                })
+                .fail(function () {
+                    WKS.toast('Failed to fetch manufacturers from API', 'error');
+                })
+                .always(function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
         },
 
         /**
