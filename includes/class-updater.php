@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 class WKS_Updater {
 
-    const GITHUB_OWNER    = '3AG-App';
+    const GITHUB_OWNER    = '3agApp';
     const GITHUB_REPO     = 'woo-kontor-sync';
     const PRODUCT_SLUG    = 'woo-kontor-sync';
     const CACHE_KEY       = 'wks_update_data';
@@ -195,7 +195,7 @@ class WKS_Updater {
             'name'           => 'Woo Kontor Sync',
             'slug'           => self::PRODUCT_SLUG,
             'version'        => $update_data['version'] ?? WKS_VERSION,
-            'author'         => '<a href="https://github.com/' . self::GITHUB_OWNER . '">3AG-App</a>',
+            'author'         => '<a href="https://github.com/' . self::GITHUB_OWNER . '">3agApp</a>',
             'author_profile' => 'https://github.com/' . self::GITHUB_OWNER,
             'homepage'       => $this->get_github_repo_url(),
             'requires'       => '5.8',

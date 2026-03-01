@@ -1,5 +1,5 @@
 === Woo Kontor Sync ===
-Contributors: 3ag-app
+Contributors: 3agApp
 Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
@@ -45,7 +45,7 @@ Woo Kontor Sync is a premium WordPress plugin that automatically imports and upd
 
 == Installation ==
 
-1. Download the latest release from [GitHub Releases](https://github.com/3AG-App/woo-kontor-sync/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/3agApp/woo-kontor-sync/releases)
 2. Upload the plugin files to `/wp-content/plugins/woo-kontor-sync`
 3. Activate the plugin through the 'Plugins' screen in WordPress
 4. Go to **Kontor Sync → License** to activate your license key
