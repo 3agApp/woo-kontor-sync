@@ -462,6 +462,11 @@ class WKS_Sync {
             return;
         }
 
+        // Get old attachment IDs before setting new ones (for cleanup)
+        $old_image_id      = $product->get_image_id();
+        $old_gallery_ids   = $product->get_gallery_image_ids();
+        $old_attachment_ids = array_filter(array_merge([$old_image_id], $old_gallery_ids));
+
         // Download and attach images
         $attachment_ids = [];
 
@@ -480,12 +485,45 @@ class WKS_Sync {
             // Set gallery images (rest)
             if (count($attachment_ids) > 1) {
                 $product->set_gallery_image_ids(array_slice($attachment_ids, 1));
+            } else {
+                $product->set_gallery_image_ids([]);
             }
 
             $product->save();
 
             // Store image URLs for change detection
             update_post_meta($product_id, '_wks_image_urls', $image_urls);
+
+            // Cleanup old attachments that are no longer used
+            $this->cleanup_old_attachments($old_attachment_ids, $attachment_ids);
+        }
+    }
+
+    /**
+     * Remove old image attachments that are no longer assigned to any product
+     */
+    private function cleanup_old_attachments($old_ids, $new_ids) {
+        $orphaned = array_diff($old_ids, $new_ids);
+
+        foreach ($orphaned as $attachment_id) {
+            if (empty($attachment_id)) {
+                continue;
+            }
+
+            // Check if any other product is still using this attachment
+            global $wpdb;
+            $in_use = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->postmeta}
+                 WHERE meta_key IN ('_thumbnail_id', '_product_image_gallery')
+                 AND meta_value LIKE %s
+                 AND post_id != %d",
+                '%' . $wpdb->esc_like($attachment_id) . '%',
+                wp_get_post_parent_id($attachment_id)
+            ));
+
+            if (empty($in_use)) {
+                wp_delete_attachment($attachment_id, true);
+            }
         }
     }
 
@@ -500,18 +538,26 @@ class WKS_Sync {
             require_once ABSPATH . 'wp-admin/includes/image.php';
         }
 
-        // Check if this image was already downloaded for this product
+        // Check if this image was already downloaded anywhere (global dedup)
         $existing = get_posts([
             'post_type'   => 'attachment',
-            'post_parent' => $product_id,
             'meta_key'    => '_wks_source_url',
             'meta_value'  => $url,
             'fields'      => 'ids',
             'numberposts' => 1,
+            'post_status' => 'any',
         ]);
 
         if (!empty($existing)) {
-            return $existing[0];
+            $attachment_id = $existing[0];
+            // Re-attach to this product if needed
+            if ((int) wp_get_post_parent_id($attachment_id) !== (int) $product_id) {
+                wp_update_post([
+                    'ID'          => $attachment_id,
+                    'post_parent' => $product_id,
+                ]);
+            }
+            return $attachment_id;
         }
 
         // Download the file
