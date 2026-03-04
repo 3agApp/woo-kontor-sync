@@ -160,9 +160,21 @@ class WKS_Admin {
             'type'              => 'string',
             'sanitize_callback' => function ($value) {
                 if (is_array($value)) {
-                    return implode(',', array_map('sanitize_text_field', array_filter($value)));
+                    $value = implode(',', $value);
                 }
-                return sanitize_text_field($value);
+
+                $parts = preg_split('/[\s,]+/', sanitize_text_field((string) $value));
+                $parts = is_array($parts) ? $parts : [];
+
+                $ids = [];
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if ($part !== '' && preg_match('/^\d+$/', $part)) {
+                        $ids[] = $part;
+                    }
+                }
+
+                return implode(',', array_values(array_unique($ids)));
             },
             'default'           => '',
         ]);

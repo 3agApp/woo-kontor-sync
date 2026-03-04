@@ -274,25 +274,6 @@ class WKS_Sync {
     }
 
     /**
-     * Check if a product passes the manufacturer filter
-     */
-    private function passes_manufacturer_filter($kontor_product) {
-        $allowed_ids = $this->get_manufacturer_filter_ids();
-        if (empty($allowed_ids)) {
-            return true; // No filter set, allow all
-        }
-
-        $hersteller_id = '';
-        if (isset($kontor_product['Herstellerid'])) {
-            $hersteller_id = trim((string) $kontor_product['Herstellerid']);
-        } elseif (isset($kontor_product['herstellerid'])) {
-            $hersteller_id = trim((string) $kontor_product['herstellerid']);
-        }
-
-        return $hersteller_id !== '' && in_array($hersteller_id, $allowed_ids, true);
-    }
-
-    /**
      * Get selected manufacturer IDs from settings
      */
     private function get_manufacturer_filter_ids() {
@@ -344,12 +325,7 @@ class WKS_Sync {
             $total_count = $result['total_count'];
 
             foreach ($page_data as $product) {
-                $id   = '';
-                if (isset($product['Herstellerid'])) {
-                    $id = trim((string) $product['Herstellerid']);
-                } elseif (isset($product['herstellerid'])) {
-                    $id = trim((string) $product['herstellerid']);
-                }
+                $id   = isset($product['Herstellerid']) ? trim((string) $product['Herstellerid']) : '';
                 $name = isset($product['Hersteller']) ? trim((string) $product['Hersteller']) : '';
 
                 if ($id !== '') {
@@ -386,12 +362,6 @@ class WKS_Sync {
 
         foreach ($batch as $kontor_product) {
             $this->stats['processed']++;
-
-            // Check manufacturer filter
-            if (!$this->passes_manufacturer_filter($kontor_product)) {
-                $this->stats['skipped']++;
-                continue;
-            }
 
             try {
                 $this->import_or_update_product($kontor_product, $image_prefix);
