@@ -165,7 +165,23 @@ class WKS_Ajax {
         $image_prefix_url = isset($_POST['image_prefix_url']) ? esc_url_raw($_POST['image_prefix_url']) : '';
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
         $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
-        $manufacturer_filter  = isset($_POST['manufacturer_filter']) ? sanitize_text_field(wp_unslash($_POST['manufacturer_filter'])) : '';
+        $manufacturer_filter  = '';
+
+        if (isset($_POST['manufacturer_filter'])) {
+            $raw_filter = sanitize_text_field(wp_unslash($_POST['manufacturer_filter']));
+            $parts      = preg_split('/[\s,]+/', (string) $raw_filter);
+            $parts      = is_array($parts) ? $parts : [];
+
+            $ids = [];
+            foreach ($parts as $part) {
+                $part = trim($part);
+                if ($part !== '' && preg_match('/^\d+$/', $part)) {
+                    $ids[] = $part;
+                }
+            }
+
+            $manufacturer_filter = implode(',', array_values(array_unique($ids)));
+        }
 
         // Save settings
         update_option('wks_api_host', $api_host);

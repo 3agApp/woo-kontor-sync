@@ -108,7 +108,7 @@ if (!defined('ABSPATH')) {
             <div class="wssc-card-body">
                 <div class="wssc-form-row">
                     <label for="wks-manufacturer-input" class="wssc-label">
-                        <?php esc_html_e('Manufacturers to Import', 'woo-kontor-sync'); ?>
+                        <?php esc_html_e('Manufacturer IDs to Import', 'woo-kontor-sync'); ?>
                     </label>
                     <div class="wssc-tags-wrapper" id="wks-manufacturer-tags-wrapper">
                         <?php
@@ -122,12 +122,14 @@ if (!defined('ABSPATH')) {
                         <input type="text"
                                id="wks-manufacturer-input"
                                class="wssc-tags-input"
-                               placeholder="<?php esc_attr_e('Type manufacturer name and press Enter…', 'woo-kontor-sync'); ?>"
+                               inputmode="numeric"
+                               autocomplete="off"
+                               placeholder="<?php esc_attr_e('Type Hersteller ID and press Enter…', 'woo-kontor-sync'); ?>"
                                <?php disabled(!$license_valid); ?>>
                     </div>
                     <input type="hidden" id="wks-manufacturer-filter" name="manufacturer_filter" value="<?php echo esc_attr($manufacturer_filter); ?>">
                     <p class="wssc-help-text">
-                        <?php esc_html_e('Only products from these manufacturers (Hersteller) will be imported or updated. Leave empty to import all products.', 'woo-kontor-sync'); ?>
+                        <?php esc_html_e('Use numeric Hersteller IDs only (you can paste multiple values; commas/spaces are supported). Leave empty to import all products.', 'woo-kontor-sync'); ?>
                     </p>
                     <div class="wssc-fetch-manufacturers">
                         <button type="button" id="wssc-fetch-manufacturers" class="wssc-btn wssc-btn-secondary wssc-btn-sm" <?php disabled(!$license_valid); ?>>

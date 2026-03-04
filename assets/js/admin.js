@@ -341,6 +341,43 @@
         },
 
         /**
+         * Extract manufacturer IDs from free-form input
+         */
+        extractManufacturerIds: function (value) {
+            if (value === null || value === undefined) {
+                return [];
+            }
+
+            const matches = String(value).match(/\d+/g);
+            if (!matches) {
+                return [];
+            }
+
+            return Array.from(new Set(matches));
+        },
+
+        /**
+         * Add manufacturer IDs from raw input text
+         */
+        addManufacturerIdsFromInput: function (rawValue, showInvalidToast) {
+            var ids = this.extractManufacturerIds(rawValue);
+            var added = 0;
+
+            ids.forEach(function (id) {
+                if (WKS.addManufacturerTag(id)) {
+                    added++;
+                }
+            });
+
+            var hasText = rawValue !== null && rawValue !== undefined && $.trim(String(rawValue)) !== '';
+            if (showInvalidToast && hasText && ids.length === 0) {
+                this.toast('Please enter numeric manufacturer IDs only', 'error');
+            }
+
+            return added;
+        },
+
+        /**
          * Initialize manufacturer tag input
          */
         initManufacturerTags: function () {
@@ -360,9 +397,8 @@
             $input.on('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ',') {
                     e.preventDefault();
-                    var val = $.trim($input.val().replace(/,/g, ''));
-                    if (val) {
-                        self.addManufacturerTag(val);
+                    if ($.trim($input.val()) !== '') {
+                        self.addManufacturerIdsFromInput($input.val(), true);
                         $input.val('');
                     }
                 }
@@ -372,11 +408,25 @@
                 }
             });
 
+            // Support pasting multiple IDs (comma, space, or mixed text)
+            $input.on('paste', function (e) {
+                var clipboardData = (e.originalEvent && e.originalEvent.clipboardData)
+                    ? e.originalEvent.clipboardData.getData('text')
+                    : '';
+
+                if (!clipboardData) {
+                    return;
+                }
+
+                e.preventDefault();
+                self.addManufacturerIdsFromInput(clipboardData, true);
+                $input.val('');
+            });
+
             // Also add on blur
             $input.on('blur', function () {
-                var val = $.trim($input.val().replace(/,/g, ''));
-                if (val) {
-                    self.addManufacturerTag(val);
+                if ($.trim($input.val()) !== '') {
+                    self.addManufacturerIdsFromInput($input.val(), false);
                     $input.val('');
                 }
             });
@@ -395,26 +445,32 @@
         addManufacturerTag: function (value) {
             var $wrapper = $('#wks-manufacturer-tags-wrapper');
             var $input = $('#wks-manufacturer-input');
+            var cleanValue = $.trim(String(value));
 
-            // Check for duplicates (case-insensitive)
+            if (!/^\d+$/.test(cleanValue)) {
+                return false;
+            }
+
+            // Check for duplicates
             var exists = false;
             $wrapper.find('.wssc-tag-remove').each(function () {
-                if ($(this).data('value').toString().toLowerCase() === value.toLowerCase()) {
+                if ($(this).data('value').toString() === cleanValue) {
                     exists = true;
                 }
             });
-            if (exists) return;
+            if (exists) return false;
 
             var $tag = $('<span class="wssc-tag"></span>')
-                .text(value)
+                .text(cleanValue)
                 .append(
                     $('<button type="button" class="wssc-tag-remove"></button>')
-                        .attr('data-value', value)
+                        .attr('data-value', cleanValue)
                         .html('&times;')
                 );
 
             $tag.insertBefore($input);
             this.updateManufacturerHidden();
+            return true;
         },
 
         /**
@@ -426,6 +482,27 @@
                 values.push($(this).data('value'));
             });
             $('#wks-manufacturer-filter').val(values.join(','));
+            this.syncManufacturerChipState();
+        },
+
+        /**
+         * Sync manufacturer chips with selected tags
+         */
+        syncManufacturerChipState: function () {
+            var current = $('#wks-manufacturer-filter').val().split(',').map(function (v) {
+                return $.trim(v);
+            }).filter(function (v) {
+                return v !== '';
+            });
+
+            $('#wssc-manufacturers-list .wssc-mfr-chip').each(function () {
+                var $chip = $(this);
+                var value = $.trim(String($chip.data('value')));
+                var isSelected = current.indexOf(value) !== -1;
+
+                $chip.toggleClass('wssc-mfr-chip-added', isSelected)
+                    .prop('disabled', isSelected);
+            });
         },
 
         /**
@@ -452,10 +529,16 @@
                             return;
                         }
 
-                        var html = '<p class="wssc-mfr-count">' + manufacturers.length + ' manufacturer(s) found. Click to add:</p>';
+                        var html = '<p class="wssc-mfr-count">' + manufacturers.length + ' manufacturer(s) found. Click to add ID:</p>';
                         html += '<div class="wssc-mfr-chips">';
                         manufacturers.forEach(function (mfr) {
-                            html += '<button type="button" class="wssc-mfr-chip" data-value="' + $('<span>').text(mfr).html() + '">' + $('<span>').text(mfr).html() + '</button>';
+                            var id = (mfr && mfr.id !== undefined) ? String(mfr.id) : '';
+                            var name = (mfr && mfr.name !== undefined) ? String(mfr.name) : '';
+                            if (!id || !/^\d+$/.test(id)) {
+                                return;
+                            }
+                            var label = name ? (name + ' (' + id + ')') : id;
+                            html += '<button type="button" class="wssc-mfr-chip" data-value="' + $('<span>').text(id).html() + '">' + $('<span>').text(label).html() + '</button>';
                         });
                         html += '</div>';
                         $list.html(html).show();
@@ -463,17 +546,13 @@
                         // Bind click on chips
                         $list.find('.wssc-mfr-chip').on('click', function () {
                             var val = $(this).data('value');
-                            self.addManufacturerTag(val);
-                            $(this).addClass('wssc-mfr-chip-added').prop('disabled', true);
-                        });
-
-                        // Mark already-added manufacturers
-                        var current = $('#wks-manufacturer-filter').val().toLowerCase().split(',').map(function (v) { return $.trim(v); });
-                        $list.find('.wssc-mfr-chip').each(function () {
-                            if (current.indexOf($(this).data('value').toString().toLowerCase()) !== -1) {
+                            if (self.addManufacturerTag(val)) {
                                 $(this).addClass('wssc-mfr-chip-added').prop('disabled', true);
                             }
                         });
+
+                        // Mark already-added manufacturers
+                        self.syncManufacturerChipState();
                     } else {
                         WKS.toast(response.data.message || 'Failed to fetch manufacturers', 'error');
                     }
