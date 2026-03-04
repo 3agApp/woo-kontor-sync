@@ -159,18 +159,13 @@ class WKS_Sync {
     private function fetch_all_products() {
         $api_host  = rtrim(get_option('wks_api_host', ''), '/');
         $api_key   = get_option('wks_api_key', '');
-        $page_size = intval(get_option('wks_page_size', 500));
-        $max_pages = intval(get_option('wks_max_pages', 2));
-
-        // Clamp page size
-        $page_size = max(1, min(2000, $page_size));
+        $page_size = 2000;
 
         $all_products = [];
         $skip         = 0;
-        $page         = 0;
         $total_count  = 0;
 
-        while ($page < $max_pages) {
+        while (true) {
             $result = $this->fetch_page($api_host, $api_key, $skip, $page_size);
 
             if (!$result['success']) {
@@ -183,7 +178,6 @@ class WKS_Sync {
             $all_products = array_merge($all_products, $page_data);
 
             $this->stats['pages_fetched']++;
-            $page++;
             $skip += $page_size;
 
             // If we received less than page_size, we've reached the end
@@ -306,10 +300,8 @@ class WKS_Sync {
         $all_manufacturers = [];
         $skip              = 0;
         $page_size         = 2000;
-        $max_pages         = 50;
-        $page              = 0;
 
-        while ($page < $max_pages) {
+        while (true) {
             $result = $this->fetch_page($api_host, $api_key, $skip, $page_size);
 
             if (!$result['success']) {
@@ -329,7 +321,6 @@ class WKS_Sync {
                 }
             }
 
-            $page++;
             $skip += $page_size;
 
             if (count($page_data) < $page_size || $skip >= $total_count) {

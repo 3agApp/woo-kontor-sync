@@ -163,22 +163,14 @@ class WKS_Ajax {
         $api_host         = isset($_POST['api_host']) ? esc_url_raw($_POST['api_host']) : '';
         $api_key          = isset($_POST['api_key']) ? trim(wp_unslash($_POST['api_key'])) : '';
         $image_prefix_url = isset($_POST['image_prefix_url']) ? esc_url_raw($_POST['image_prefix_url']) : '';
-        $page_size        = isset($_POST['page_size']) ? intval($_POST['page_size']) : 500;
-        $max_pages        = isset($_POST['max_pages']) ? intval($_POST['max_pages']) : 2;
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
         $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
         $manufacturer_filter  = isset($_POST['manufacturer_filter']) ? sanitize_text_field(wp_unslash($_POST['manufacturer_filter'])) : '';
-
-        // Validate page_size
-        $page_size = max(1, min(2000, $page_size));
-        $max_pages = max(1, min(100, $max_pages));
 
         // Save settings
         update_option('wks_api_host', $api_host);
         update_option('wks_api_key', $api_key);
         update_option('wks_image_prefix_url', $image_prefix_url);
-        update_option('wks_page_size', $page_size);
-        update_option('wks_max_pages', $max_pages);
         update_option('wks_schedule_interval', $interval);
         update_option('wks_enabled', $enabled);
         update_option('wks_manufacturer_filter', $manufacturer_filter);

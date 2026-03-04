@@ -14,8 +14,6 @@ $options = [
     'wks_api_host',
     'wks_api_key',
     'wks_image_prefix_url',
-    'wks_page_size',
-    'wks_max_pages',
     'wks_schedule_interval',
     'wks_enabled',
     'wks_license_key',

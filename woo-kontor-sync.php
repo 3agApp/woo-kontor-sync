@@ -163,8 +163,6 @@ final class Woo_Kontor_Sync {
             'api_host'          => '',
             'api_key'           => '',
             'image_prefix_url'  => '',
-            'page_size'         => 500,
-            'max_pages'         => 2,
             'schedule_interval' => 'hourly',
             'enabled'           => false,
         ];

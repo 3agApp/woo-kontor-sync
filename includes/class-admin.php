@@ -145,16 +145,6 @@ class WKS_Admin {
             'sanitize_callback' => 'esc_url_raw',
         ]);
 
-        register_setting('wks_settings', 'wks_page_size', [
-            'type'    => 'integer',
-            'default' => 500,
-        ]);
-
-        register_setting('wks_settings', 'wks_max_pages', [
-            'type'    => 'integer',
-            'default' => 2,
-        ]);
-
         register_setting('wks_settings', 'wks_schedule_interval', [
             'type'              => 'string',
             'sanitize_callback' => 'sanitize_text_field',
@@ -228,8 +218,6 @@ class WKS_Admin {
         $api_host         = get_option('wks_api_host', '');
         $api_key          = get_option('wks_api_key', '');
         $image_prefix_url = get_option('wks_image_prefix_url', '');
-        $page_size        = get_option('wks_page_size', 500);
-        $max_pages        = get_option('wks_max_pages', 2);
         $enabled              = get_option('wks_enabled', false);
         $manufacturer_filter  = get_option('wks_manufacturer_filter', '');
 

@@ -97,52 +97,6 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
-        <!-- Pagination Configuration -->
-        <div class="wssc-section wssc-card">
-            <div class="wssc-card-header">
-                <h2>
-                    <span class="dashicons dashicons-list-view"></span>
-                    <?php esc_html_e('Pagination Settings', 'woo-kontor-sync'); ?>
-                </h2>
-            </div>
-            <div class="wssc-card-body">
-                <div class="wssc-form-row wssc-form-row-2col">
-                    <div class="wssc-form-col">
-                        <label for="wks-page-size" class="wssc-label">
-                            <?php esc_html_e('Page Size', 'woo-kontor-sync'); ?>
-                        </label>
-                        <input type="number"
-                               id="wks-page-size"
-                               name="page_size"
-                               value="<?php echo esc_attr($page_size); ?>"
-                               class="wssc-input"
-                               min="1"
-                               max="2000"
-                               <?php disabled(!$license_valid); ?>>
-                        <p class="wssc-help-text">
-                            <?php esc_html_e('Number of products to fetch per API request (max 2000).', 'woo-kontor-sync'); ?>
-                        </p>
-                    </div>
-                    <div class="wssc-form-col">
-                        <label for="wks-max-pages" class="wssc-label">
-                            <?php esc_html_e('Max Pages', 'woo-kontor-sync'); ?>
-                        </label>
-                        <input type="number"
-                               id="wks-max-pages"
-                               name="max_pages"
-                               value="<?php echo esc_attr($max_pages); ?>"
-                               class="wssc-input"
-                               min="1"
-                               max="100"
-                               <?php disabled(!$license_valid); ?>>
-                        <p class="wssc-help-text">
-                            <?php esc_html_e('Maximum number of pages to fetch per sync. Use a low value for testing.', 'woo-kontor-sync'); ?>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Manufacturer Filter -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">

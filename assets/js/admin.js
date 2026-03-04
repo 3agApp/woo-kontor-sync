@@ -503,8 +503,6 @@
                 api_host: $('#wks-api-host').val(),
                 api_key: $('#wks-api-key').val(),
                 image_prefix_url: $('#wks-image-prefix-url').val(),
-                page_size: $('#wks-page-size').val(),
-                max_pages: $('#wks-max-pages').val(),
                 schedule_interval: $('#wks-schedule-interval').val(),
                 enabled: $('#wks-enabled').is(':checked'),
                 manufacturer_filter: $('#wks-manufacturer-filter').val()
