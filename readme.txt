@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,11 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.0.5 =
+* Removed pagination settings; sync now always fetches with page size 2000 until all pages are complete
+* Switched manufacturer filtering to API-level Hersteller ID filtering
+* Improved manufacturer ID input UX and chip/tag synchronization in settings
 
 = 1.0.4 =
 * Added button to fetch available manufacturers from Kontor API
