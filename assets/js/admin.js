@@ -94,6 +94,9 @@
             this.initManufacturerTags();
             $('#wssc-fetch-manufacturers').on('click', this.fetchManufacturers.bind(this));
 
+            // Shop selection
+            $('#wssc-fetch-shops').on('click', this.fetchShops.bind(this));
+
             // License
             $('#wssc-license-form').on('submit', this.activateLicense.bind(this));
             $('#wssc-deactivate-license').on('click', this.deactivateLicense.bind(this));
@@ -584,7 +587,8 @@
                 image_prefix_url: $('#wks-image-prefix-url').val(),
                 schedule_interval: $('#wks-schedule-interval').val(),
                 enabled: $('#wks-enabled').is(':checked'),
-                manufacturer_filter: $('#wks-manufacturer-filter').val()
+                manufacturer_filter: $('#wks-manufacturer-filter').val(),
+                shop_id: $('#wks-shop-id').val()
             };
 
             this.ajax('wks_save_settings', data)
@@ -849,47 +853,53 @@
         },
 
         /**
-         * Close modal
+         * Fetch available shops from Kontor API
          */
-        closeModal: function () {
-            $('.wssc-modal').removeClass('wssc-modal-open');
-        },
+        fetchShops: function (e) {
+            e.preventDefault();
 
-        /**
-         * AJAX helper
-         */
-        ajax: function (action, data) {
-            data = data || {};
-            data.action = action;
-            data.nonce = wks_admin.nonce;
+            var $btn = $('#wssc-fetch-shops');
+            var $select = $('#wks-shop-id');
+            var originalHtml = $btn.html();
+            var currentValue = $select.val();
 
-            return $.ajax({
-                url: wks_admin.ajax_url,
-                type: 'POST',
-                data: data,
-                dataType: 'json'
-            });
-        },
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Loading…');
 
-        /**
-         * Toast notification
-         */
-        toast: function (message, type) {
-            type = type || 'success';
+            this.ajax('wks_fetch_shops', {})
+                .done(function (response) {
+                    if (response.success && response.data.shops) {
+                        var shops = response.data.shops;
+                        $select.empty().append('<option value="">— Select a shop —</option>');
 
-            $('.wssc-toast').remove();
+                        shops.forEach(function (shop) {
+                            var id = shop.Shopid || shop.shopid || shop.Id || shop.id || '';
+                            var name = shop.Shopname || shop.shopname || shop.Name || shop.name || id;
+                            if (!id) return;
 
-            const $toast = $('<div class="wssc-toast wssc-toast-' + type + '">' + message + '</div>');
-            $('body').append($toast);
+                            var $opt = $('<option></option>')
+                                .val(id)
+                                .text(name + ' (' + id.substring(0, 8) + '…)');
 
-            setTimeout(function () {
-                $toast.fadeOut(300, function () {
-                    $(this).remove();
-                });
-            }, 4000);
-        },
+                            if (id === currentValue) {
+                                $opt.prop('selected', true);
+                            }
 
-        /**
+                            $select.append($opt);
+                        });
+
+                        WKS.toast(shops.length + ' shop(s) loaded', 'success');
+                    } else {
+                        WKS.toast(response.data.message || 'Failed to fetch shops', 'error');
+                    }
+                })
+                    } else {
+                        WKS.toast(response.data.message || 'Failed to fetch categories', 'error');
+                    }
+                })
+                .fail(function () {
+                    WKS.toast('Failed to fetch categories from API', 'error');
+                })
          * Initialize chart
          */
         initChart: function () {

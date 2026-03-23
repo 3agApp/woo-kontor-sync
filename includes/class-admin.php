@@ -232,6 +232,7 @@ class WKS_Admin {
         $image_prefix_url = get_option('wks_image_prefix_url', '');
         $enabled              = get_option('wks_enabled', false);
         $manufacturer_filter  = get_option('wks_manufacturer_filter', '');
+        $shop_id              = get_option('wks_shop_id', '');
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

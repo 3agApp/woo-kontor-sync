@@ -142,6 +142,40 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
+        <!-- Shop Selection -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-store"></span>
+                    <?php esc_html_e('Shop Selection', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-form-row">
+                    <label for="wks-shop-id" class="wssc-label">
+                        <?php esc_html_e('Kontor Shop', 'woo-kontor-sync'); ?>
+                    </label>
+                    <div class="wssc-input-group">
+                        <select id="wks-shop-id" name="shop_id" class="wssc-select" <?php disabled(!$license_valid); ?>>
+                            <option value=""><?php esc_html_e('— Select a shop —', 'woo-kontor-sync'); ?></option>
+                            <?php if (!empty($shop_id)): ?>
+                                <option value="<?php echo esc_attr($shop_id); ?>" selected>
+                                    <?php echo esc_html($shop_id); ?>
+                                </option>
+                            <?php endif; ?>
+                        </select>
+                        <button type="button" id="wssc-fetch-shops" class="wssc-btn wssc-btn-secondary" <?php disabled(!$license_valid); ?>>
+                            <span class="dashicons dashicons-download"></span>
+                            <?php esc_html_e('Load Shops', 'woo-kontor-sync'); ?>
+                        </button>
+                    </div>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('Select the Kontor shop to use for category management. Click "Load Shops" to fetch available shops from the API.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Configuration -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">

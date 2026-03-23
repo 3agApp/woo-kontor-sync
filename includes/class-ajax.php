@@ -29,6 +29,7 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_check_update', [$this, 'check_update']);
         add_action('wp_ajax_wks_install_update', [$this, 'install_update']);
         add_action('wp_ajax_wks_fetch_manufacturers', [$this, 'fetch_manufacturers']);
+        add_action('wp_ajax_wks_fetch_shops', [$this, 'fetch_shops']);
     }
 
     /**
@@ -119,6 +120,27 @@ class WKS_Ajax {
     }
 
     /**
+     * Fetch available shops from Kontor API
+     */
+    public function fetch_shops() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        $result = WKS()->sync->fetch_shops();
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
      * Test API connection
      */
     public function test_connection() {
@@ -165,6 +187,7 @@ class WKS_Ajax {
         $image_prefix_url = isset($_POST['image_prefix_url']) ? esc_url_raw($_POST['image_prefix_url']) : '';
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
         $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
+        $shop_id              = isset($_POST['shop_id']) ? sanitize_text_field(wp_unslash($_POST['shop_id'])) : '';
         $manufacturer_filter  = '';
 
         if (isset($_POST['manufacturer_filter'])) {
@@ -190,6 +213,7 @@ class WKS_Ajax {
         update_option('wks_schedule_interval', $interval);
         update_option('wks_enabled', $enabled);
         update_option('wks_manufacturer_filter', $manufacturer_filter);
+        update_option('wks_shop_id', $shop_id);
 
         // Handle scheduling
         if ($enabled && !empty($api_host) && !empty($api_key)) {

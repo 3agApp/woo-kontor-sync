@@ -300,8 +300,8 @@ class WKS_Sync {
      * Fetch all unique manufacturers from the Kontor API
      */
     public function fetch_manufacturers() {
-        $api_host  = rtrim(get_option('wks_api_host', ''), '/');
-        $api_key   = get_option('wks_api_key', '');
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
 
         if (empty($api_host) || empty($api_key)) {
             return [
@@ -310,47 +310,110 @@ class WKS_Sync {
             ];
         }
 
-        $all_manufacturers = [];
-        $skip              = 0;
-        $page_size         = 2000;
+        $result = $this->api_search($api_host, $api_key, ['entity' => 'manufacturer']);
 
-        while (true) {
-            $result = $this->fetch_page($api_host, $api_key, $skip, $page_size);
+        if (!$result['success']) {
+            return $result;
+        }
 
-            if (!$result['success']) {
-                return $result;
-            }
+        $manufacturers = [];
+        foreach ($result['data'] as $item) {
+            $id   = isset($item['Herstellerid']) ? trim((string) $item['Herstellerid']) : '';
+            $name = isset($item['Hersteller']) ? trim((string) $item['Hersteller']) : '';
 
-            $page_data   = $result['data'];
-            $total_count = $result['total_count'];
-
-            foreach ($page_data as $product) {
-                $id   = isset($product['Herstellerid']) ? trim((string) $product['Herstellerid']) : '';
-                $name = isset($product['Hersteller']) ? trim((string) $product['Hersteller']) : '';
-
-                if ($id !== '') {
-                    if (!isset($all_manufacturers[$id])) {
-                        $all_manufacturers[$id] = [
-                            'id'   => $id,
-                            'name' => $name,
-                        ];
-                    }
-                }
-            }
-
-            $skip += $page_size;
-
-            if (count($page_data) < $page_size || $skip >= $total_count) {
-                break;
+            if ($id !== '' && !isset($manufacturers[$id])) {
+                $manufacturers[$id] = [
+                    'id'   => $id,
+                    'name' => $name,
+                ];
             }
         }
 
-        ksort($all_manufacturers, SORT_NATURAL);
+        ksort($manufacturers, SORT_NATURAL);
 
         return [
             'success'       => true,
-            'manufacturers' => array_values($all_manufacturers),
-            'total_products'=> $total_count,
+            'manufacturers' => array_values($manufacturers),
+        ];
+    }
+
+    /**
+     * Fetch all shops from the Kontor API
+     */
+    public function fetch_shops() {
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $result = $this->api_search($api_host, $api_key, ['entity' => 'shops']);
+
+        if (!$result['success']) {
+            return $result;
+        }
+
+        return [
+            'success' => true,
+            'shops'   => $result['data'],
+        ];
+    }
+
+    /**
+     * Generic API search call (non-paginated)
+     */
+    private function api_search($api_host, $api_key, $payload) {
+        $url = $api_host . '/api/v1/kontor/search';
+
+        $response = wp_remote_post($url, [
+            'timeout' => 120,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'x-api-key'    => $api_key,
+            ],
+            'body' => wp_json_encode($payload),
+        ]);
+
+        if (is_wp_error($response)) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __('Kontor API request failed: %s', 'woo-kontor-sync'),
+                    $response->get_error_message()
+                ),
+            ];
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+
+        if ($code !== 200) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __('Kontor API returned HTTP %d', 'woo-kontor-sync'),
+                    $code
+                ),
+            ];
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if (empty($data) || !isset($data['success']) || $data['success'] !== true) {
+            $error_msg = isset($data['message']) ? $data['message'] : __('Unknown API error', 'woo-kontor-sync');
+            return [
+                'success' => false,
+                'message' => sprintf(__('Kontor API error: %s', 'woo-kontor-sync'), $error_msg),
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data'    => isset($data['data']) ? $data['data'] : [],
         ];
     }
 
