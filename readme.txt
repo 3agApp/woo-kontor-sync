@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,13 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.0.6 =
+* Added dedicated API endpoints for shops, manufacturers, and categories
+* Added shop selection dropdown in settings
+* Added category management: fetch Kontor categories and push WooCommerce categories via upsert
+* Product sync now handles hierarchical categories from API response
+* Stable category ID mapping via _wks_kontor_katid term meta
 
 = 1.0.5 =
 * Removed pagination settings; sync now always fetches with page size 2000 until all pages are complete

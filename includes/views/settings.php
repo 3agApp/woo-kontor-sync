@@ -176,6 +176,48 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
+        <!-- Category Management -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-category"></span>
+                    <?php esc_html_e('Category Management', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <p class="wssc-help-text" style="margin-bottom: 16px;">
+                    <?php esc_html_e('View categories stored in Kontor for the selected shop, or push your WooCommerce categories to Kontor.', 'woo-kontor-sync'); ?>
+                </p>
+
+                <div class="wssc-category-actions">
+                    <button type="button" id="wssc-fetch-categories" class="wssc-btn wssc-btn-secondary wssc-btn-sm" <?php disabled(!$license_valid); ?>>
+                        <span class="dashicons dashicons-download"></span>
+                        <?php esc_html_e('Fetch Kontor Categories', 'woo-kontor-sync'); ?>
+                    </button>
+                    <button type="button" id="wssc-push-categories" class="wssc-btn wssc-btn-primary wssc-btn-sm" <?php disabled(!$license_valid); ?>>
+                        <span class="dashicons dashicons-upload"></span>
+                        <?php esc_html_e('Push WooCommerce Categories to Kontor', 'woo-kontor-sync'); ?>
+                    </button>
+                </div>
+
+                <div class="wssc-form-row" style="margin-top: 12px;">
+                    <label class="wssc-label">
+                        <input type="checkbox" id="wks-overwrite-all" value="1" checked <?php disabled(!$license_valid); ?>>
+                        <?php esc_html_e('Overwrite all categories (replaces entire category tree for the shop)', 'woo-kontor-sync'); ?>
+                    </label>
+                    <p class="wssc-help-text wssc-help-text-warning">
+                        <span class="dashicons dashicons-warning"></span>
+                        <?php esc_html_e('Warning: Overwrite mode replaces all categories. Existing product-to-category assignments in Kontor may be lost if category IDs change.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div id="wssc-kontor-categories" class="wssc-kontor-categories" style="display:none;">
+                    <h4><?php esc_html_e('Kontor Categories', 'woo-kontor-sync'); ?></h4>
+                    <div id="wssc-kontor-categories-list" class="wssc-kontor-categories-list"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Configuration -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">

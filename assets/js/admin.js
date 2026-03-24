@@ -94,8 +94,10 @@
             this.initManufacturerTags();
             $('#wssc-fetch-manufacturers').on('click', this.fetchManufacturers.bind(this));
 
-            // Shop selection
+            // Shops & Categories
             $('#wssc-fetch-shops').on('click', this.fetchShops.bind(this));
+            $('#wssc-fetch-categories').on('click', this.fetchCategories.bind(this));
+            $('#wssc-push-categories').on('click', this.pushCategories.bind(this));
 
             // License
             $('#wssc-license-form').on('submit', this.activateLicense.bind(this));
@@ -893,6 +895,50 @@
                         WKS.toast(response.data.message || 'Failed to fetch shops', 'error');
                     }
                 })
+                .fail(function () {
+                    WKS.toast('Failed to fetch shops from API', 'error');
+                })
+                .always(function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Fetch categories for selected shop from Kontor API
+         */
+        fetchCategories: function (e) {
+            e.preventDefault();
+            var self = this;
+
+            var shopId = $('#wks-shop-id').val();
+            if (!shopId) {
+                this.toast('Please select a shop first', 'error');
+                return;
+            }
+
+            var $btn = $('#wssc-fetch-categories');
+            var $container = $('#wssc-kontor-categories');
+            var $list = $('#wssc-kontor-categories-list');
+            var originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Fetching…');
+
+            this.ajax('wks_fetch_categories', { shop_id: shopId })
+                .done(function (response) {
+                    if (response.success && response.data.categories) {
+                        var categories = response.data.categories;
+                        if (categories.length === 0) {
+                            $list.html('<p class="wssc-mfr-empty">No categories found for this shop in Kontor.</p>');
+                        } else {
+                            var html = '<p class="wssc-mfr-count">' + categories.length + ' category(ies) in Kontor:</p>';
+                            html += '<div class="wssc-category-tree">';
+                            html += self.buildCategoryTree(categories);
+                            html += '</div>';
+                            $list.html(html);
+                        }
+                        $container.show();
+                        WKS.toast(categories.length + ' category(ies) found', 'success');
                     } else {
                         WKS.toast(response.data.message || 'Failed to fetch categories', 'error');
                     }
@@ -900,6 +946,158 @@
                 .fail(function () {
                     WKS.toast('Failed to fetch categories from API', 'error');
                 })
+                .always(function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Build a nested category tree HTML from flat category list
+         */
+        buildCategoryTree: function (categories) {
+            var esc = this.escapeHtml.bind(this);
+            // Build parent-child map
+            var byParent = {};
+            var roots = [];
+
+            categories.forEach(function (cat) {
+                var id = (cat.katid || cat.Katid || cat.KatId || '').toString();
+                var parentId = (cat.katidparent || cat.Katidparent || cat.KatIdParent || '').toString();
+                var name = cat.katname || cat.Katname || cat.KatName || '';
+
+                if (!byParent[parentId]) {
+                    byParent[parentId] = [];
+                }
+                byParent[parentId].push({ id: id, parentId: parentId, name: name });
+            });
+
+            function renderLevel(parentId) {
+                var children = byParent[parentId] || [];
+                if (children.length === 0) return '';
+
+                var html = '<ul class="wssc-cat-tree-list">';
+                children.forEach(function (cat) {
+                    html += '<li>';
+                    html += '<span class="wssc-cat-tree-item">';
+                    html += '<span class="dashicons dashicons-category"></span> ';
+                    html += esc(cat.name);
+                    html += ' <code class="wssc-cat-id">' + esc(cat.id) + '</code>';
+                    html += '</span>';
+                    html += renderLevel(cat.id);
+                    html += '</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            // Roots are categories with empty parent or parent not in the list
+            var allIds = {};
+            categories.forEach(function (cat) {
+                allIds[(cat.katid || cat.Katid || cat.KatId || '').toString()] = true;
+            });
+
+            var rootHtml = '';
+            // Render from empty parent first
+            rootHtml += renderLevel('');
+            // Also render from parents that don't exist in the list
+            Object.keys(byParent).forEach(function (parentId) {
+                if (parentId !== '' && !allIds[parentId]) {
+                    rootHtml += renderLevel(parentId);
+                }
+            });
+
+            return rootHtml || '<p class="wssc-mfr-empty">No categories to display.</p>';
+        },
+
+        /**
+         * Push WooCommerce categories to Kontor
+         */
+        pushCategories: function (e) {
+            e.preventDefault();
+
+            var shopId = $('#wks-shop-id').val();
+            if (!shopId) {
+                this.toast('Please select a shop first', 'error');
+                return;
+            }
+
+            var overwriteAll = $('#wks-overwrite-all').is(':checked');
+
+            var confirmMsg = overwriteAll
+                ? 'This will OVERWRITE ALL categories for the selected shop in Kontor. Product-to-category assignments may be affected if IDs change. Continue?'
+                : 'Push WooCommerce categories to Kontor for the selected shop?';
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            var $btn = $('#wssc-push-categories');
+            var originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Pushing…');
+
+            this.ajax('wks_upsert_categories', {
+                shop_id: shopId,
+                overwrite_all: overwriteAll
+            })
+                .done(function (response) {
+                    if (response.success) {
+                        WKS.toast(response.data.message, 'success');
+                    } else {
+                        WKS.toast(response.data.message, 'error');
+                    }
+                })
+                .fail(function () {
+                    WKS.toast('Failed to push categories to Kontor', 'error');
+                })
+                .always(function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Close modal
+         */
+        closeModal: function () {
+            $('.wssc-modal').removeClass('wssc-modal-open');
+        },
+
+        /**
+         * AJAX helper
+         */
+        ajax: function (action, data) {
+            data = data || {};
+            data.action = action;
+            data.nonce = wks_admin.nonce;
+
+            return $.ajax({
+                url: wks_admin.ajax_url,
+                type: 'POST',
+                data: data,
+                dataType: 'json'
+            });
+        },
+
+        /**
+         * Toast notification
+         */
+        toast: function (message, type) {
+            type = type || 'success';
+
+            $('.wssc-toast').remove();
+
+            const $toast = $('<div class="wssc-toast wssc-toast-' + type + '">' + message + '</div>');
+            $('body').append($toast);
+
+            setTimeout(function () {
+                $toast.fadeOut(300, function () {
+                    $(this).remove();
+                });
+            }, 4000);
+        },
+
+        /**
          * Initialize chart
          */
         initChart: function () {

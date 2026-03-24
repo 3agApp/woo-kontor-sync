@@ -364,6 +364,126 @@ class WKS_Sync {
     }
 
     /**
+     * Fetch categories for a specific shop from the Kontor API
+     */
+    public function fetch_categories($shop_id) {
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        if (empty($shop_id)) {
+            return [
+                'success' => false,
+                'message' => __('Shop ID is required to fetch categories.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $result = $this->api_search($api_host, $api_key, [
+            'entity' => 'categories',
+            'filter' => [
+                'shopid' => $shop_id,
+            ],
+        ]);
+
+        if (!$result['success']) {
+            return $result;
+        }
+
+        return [
+            'success'    => true,
+            'categories' => $result['data'],
+        ];
+    }
+
+    /**
+     * Upsert categories to Kontor for a specific shop
+     */
+    public function upsert_categories($shop_id, $categories, $overwrite_all = true) {
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        if (empty($shop_id)) {
+            return [
+                'success' => false,
+                'message' => __('Shop ID is required.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $url = $api_host . '/api/v1/kontor/upsert';
+
+        $payload = [
+            'name'   => 'categories',
+            'meta'   => ['userId' => 'WKS'],
+            'params' => [
+                'shopid'        => $shop_id,
+                'overwrite_all' => $overwrite_all,
+                'categories'    => $categories,
+            ],
+        ];
+
+        $response = wp_remote_post($url, [
+            'timeout' => 120,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'x-api-key'    => $api_key,
+            ],
+            'body' => wp_json_encode($payload),
+        ]);
+
+        if (is_wp_error($response)) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __('Kontor API request failed: %s', 'woo-kontor-sync'),
+                    $response->get_error_message()
+                ),
+            ];
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+
+        if ($code !== 200) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __('Kontor API returned HTTP %d', 'woo-kontor-sync'),
+                    $code
+                ),
+            ];
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if (empty($data) || (isset($data['success']) && $data['success'] !== true)) {
+            $error_msg = isset($data['message']) ? $data['message'] : __('Unknown API error', 'woo-kontor-sync');
+            return [
+                'success' => false,
+                'message' => sprintf(__('Kontor API error: %s', 'woo-kontor-sync'), $error_msg),
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => __('Categories upserted successfully.', 'woo-kontor-sync'),
+            'data'    => $data,
+        ];
+    }
+
+    /**
      * Generic API search call (non-paginated)
      */
     private function api_search($api_host, $api_key, $payload) {
@@ -537,8 +657,10 @@ class WKS_Sync {
         $product->save();
         $product_id = $product->get_id();
 
-        // Handle category
-        if (!empty($kontor['Katname'])) {
+        // Handle categories (new hierarchical format or legacy Katname)
+        if (!empty($kontor['categories']) && is_array($kontor['categories'])) {
+            $this->assign_categories_hierarchical($product_id, $kontor['categories']);
+        } elseif (!empty($kontor['Katname'])) {
             $this->assign_category($product_id, $kontor['Katname']);
         }
 
@@ -555,7 +677,7 @@ class WKS_Sync {
     }
 
     /**
-     * Assign product category
+     * Assign product category (legacy single category)
      */
     private function assign_category($product_id, $category_name) {
         $category_name = trim($category_name);
@@ -578,6 +700,159 @@ class WKS_Sync {
         }
 
         wp_set_object_terms($product_id, [$term_id], 'product_cat');
+    }
+
+    /**
+     * Assign hierarchical categories from Kontor API response
+     *
+     * Each category has: katid, katidparent, katname
+     */
+    private function assign_categories_hierarchical($product_id, $categories) {
+        if (empty($categories) || !is_array($categories)) {
+            return;
+        }
+
+        // Build a map of katid => category data
+        $kat_map = [];
+        foreach ($categories as $cat) {
+            $katid = isset($cat['katid']) ? trim((string) $cat['katid']) : '';
+            if ($katid === '') {
+                continue;
+            }
+            $kat_map[$katid] = $cat;
+        }
+
+        // Map katid => WooCommerce term_id
+        $katid_to_term = [];
+        $term_ids      = [];
+
+        // Process categories in order that ensures parents are created first
+        $processed = [];
+        $max_passes = count($kat_map) + 1;
+        $pass = 0;
+
+        while (count($processed) < count($kat_map) && $pass < $max_passes) {
+            $pass++;
+            foreach ($kat_map as $katid => $cat) {
+                if (isset($processed[$katid])) {
+                    continue;
+                }
+
+                $parent_katid = isset($cat['katidparent']) ? trim((string) $cat['katidparent']) : '';
+                $katname      = isset($cat['katname']) ? trim((string) $cat['katname']) : '';
+
+                if (empty($katname)) {
+                    $processed[$katid] = true;
+                    continue;
+                }
+
+                // Determine WooCommerce parent term ID
+                $wc_parent_id = 0;
+                if ($parent_katid !== '' && isset($kat_map[$parent_katid])) {
+                    if (!isset($katid_to_term[$parent_katid])) {
+                        // Parent not yet processed, skip for now
+                        continue;
+                    }
+                    $wc_parent_id = $katid_to_term[$parent_katid];
+                }
+
+                // Check if category exists by kontor katid meta
+                $existing_terms = get_terms([
+                    'taxonomy'   => 'product_cat',
+                    'meta_key'   => '_wks_kontor_katid',
+                    'meta_value' => $katid,
+                    'hide_empty' => false,
+                    'number'     => 1,
+                ]);
+
+                if (!empty($existing_terms) && !is_wp_error($existing_terms)) {
+                    $term = $existing_terms[0];
+                    // Update name/parent if changed
+                    wp_update_term($term->term_id, 'product_cat', [
+                        'name'   => $katname,
+                        'parent' => $wc_parent_id,
+                    ]);
+                    $term_id = $term->term_id;
+                } else {
+                    // Try to find by name + parent
+                    $term = get_term_by('name', $katname, 'product_cat');
+                    if ($term && (int) $term->parent === (int) $wc_parent_id) {
+                        $term_id = $term->term_id;
+                    } else {
+                        // Create new category
+                        $result = wp_insert_term($katname, 'product_cat', [
+                            'parent' => $wc_parent_id,
+                        ]);
+                        if (is_wp_error($result)) {
+                            $processed[$katid] = true;
+                            continue;
+                        }
+                        $term_id = $result['term_id'];
+                    }
+                    // Store kontor katid mapping
+                    update_term_meta($term_id, '_wks_kontor_katid', $katid);
+                }
+
+                $katid_to_term[$katid] = $term_id;
+                $term_ids[]            = $term_id;
+                $processed[$katid]     = true;
+            }
+        }
+
+        if (!empty($term_ids)) {
+            wp_set_object_terms($product_id, $term_ids, 'product_cat');
+        }
+    }
+
+    /**
+     * Build WooCommerce categories array for Kontor upsert from a shop's WooCommerce categories
+     */
+    public function build_categories_for_upsert($term_ids = []) {
+        if (empty($term_ids)) {
+            $terms = get_terms([
+                'taxonomy'   => 'product_cat',
+                'hide_empty' => false,
+            ]);
+        } else {
+            $terms = get_terms([
+                'taxonomy'   => 'product_cat',
+                'include'    => $term_ids,
+                'hide_empty' => false,
+            ]);
+        }
+
+        if (is_wp_error($terms) || empty($terms)) {
+            return [];
+        }
+
+        // Map WC term_id => kontor katid (use stored mapping or term_id as string)
+        $categories = [];
+        $term_to_katid = [];
+
+        foreach ($terms as $term) {
+            $katid = get_term_meta($term->term_id, '_wks_kontor_katid', true);
+            if (empty($katid)) {
+                $katid = (string) $term->term_id;
+            }
+            $term_to_katid[$term->term_id] = $katid;
+        }
+
+        foreach ($terms as $term) {
+            $katid = $term_to_katid[$term->term_id];
+            $parent_katid = '';
+
+            if ($term->parent && isset($term_to_katid[$term->parent])) {
+                $parent_katid = $term_to_katid[$term->parent];
+            }
+
+            $categories[] = [
+                'katid'       => $katid,
+                'katidparent' => $parent_katid,
+                'katname'     => $term->name,
+            ];
+        }
+
+        return $categories;
     }
 
     /**

@@ -30,6 +30,8 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_install_update', [$this, 'install_update']);
         add_action('wp_ajax_wks_fetch_manufacturers', [$this, 'fetch_manufacturers']);
         add_action('wp_ajax_wks_fetch_shops', [$this, 'fetch_shops']);
+        add_action('wp_ajax_wks_fetch_categories', [$this, 'fetch_categories']);
+        add_action('wp_ajax_wks_upsert_categories', [$this, 'upsert_categories']);
     }
 
     /**
@@ -135,6 +137,80 @@ class WKS_Ajax {
 
         if ($result['success']) {
             wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * Fetch categories for a shop from Kontor API
+     */
+    public function fetch_categories() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        $shop_id = isset($_POST['shop_id']) ? sanitize_text_field(wp_unslash($_POST['shop_id'])) : '';
+
+        if (empty($shop_id)) {
+            wp_send_json_error([
+                'message' => __('Please select a shop first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        $result = WKS()->sync->fetch_categories($shop_id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * Upsert (push) WooCommerce categories to Kontor
+     */
+    public function upsert_categories() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        $shop_id       = isset($_POST['shop_id']) ? sanitize_text_field(wp_unslash($_POST['shop_id'])) : '';
+        $overwrite_all = isset($_POST['overwrite_all']) && $_POST['overwrite_all'] === 'true';
+
+        if (empty($shop_id)) {
+            wp_send_json_error([
+                'message' => __('Please select a shop first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        // Build categories from WooCommerce
+        $categories = WKS()->sync->build_categories_for_upsert();
+
+        if (empty($categories)) {
+            wp_send_json_error([
+                'message' => __('No WooCommerce product categories found to push.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        $result = WKS()->sync->upsert_categories($shop_id, $categories, $overwrite_all);
+
+        if ($result['success']) {
+            wp_send_json_success([
+                'message'         => sprintf(
+                    __('Successfully pushed %d categories to Kontor.', 'woo-kontor-sync'),
+                    count($categories)
+                ),
+                'categories_count' => count($categories),
+            ]);
         } else {
             wp_send_json_error($result);
         }
