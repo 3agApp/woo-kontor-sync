@@ -218,6 +218,127 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
+        <!-- Order Sync Configuration -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-cart"></span>
+                    <?php esc_html_e('Order Sync Configuration', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-form-row">
+                    <label class="wssc-label">
+                        <?php esc_html_e('Enable Order Sync', 'woo-kontor-sync'); ?>
+                    </label>
+                    <div class="wssc-toggle-row">
+                        <label class="wssc-switch">
+                            <input type="checkbox" id="wks-order-sync-enabled" name="order_sync_enabled" value="1" <?php checked($order_sync_enabled); ?> <?php disabled(!$license_valid); ?>>
+                            <span class="wssc-slider"></span>
+                        </label>
+                        <span class="wssc-toggle-label">
+                            <?php esc_html_e('Upload WooCommerce orders to Kontor CRM', 'woo-kontor-sync'); ?>
+                        </span>
+                    </div>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('When enabled, orders are uploaded in real-time on status change and on a schedule as catch-up.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label class="wssc-label">
+                        <?php esc_html_e('Order Statuses to Sync', 'woo-kontor-sync'); ?>
+                    </label>
+                    <div class="wssc-checkbox-group">
+                        <?php
+                        $all_statuses = wc_get_order_statuses();
+                        $selected_statuses = is_array($order_statuses) ? $order_statuses : ['processing', 'completed'];
+                        foreach ($all_statuses as $status_key => $status_label):
+                            $clean_key = str_replace('wc-', '', $status_key);
+                        ?>
+                            <label class="wssc-checkbox-label">
+                                <input type="checkbox"
+                                       name="order_statuses[]"
+                                       value="<?php echo esc_attr($clean_key); ?>"
+                                       <?php checked(in_array($clean_key, $selected_statuses, true)); ?>
+                                       <?php disabled(!$license_valid); ?>>
+                                <?php echo esc_html($status_label); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('Orders with these statuses will be uploaded to Kontor. Both real-time (on status change) and scheduled sync respect this setting.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label for="wks-order-platform-id" class="wssc-label">
+                        <?php esc_html_e('Platform ID', 'woo-kontor-sync'); ?>
+                    </label>
+                    <input type="text"
+                           id="wks-order-platform-id"
+                           name="order_platform_id"
+                           value="<?php echo esc_attr($order_platform_id); ?>"
+                           class="wssc-input"
+                           placeholder="<?php echo esc_attr(wp_parse_url(home_url(), PHP_URL_HOST)); ?>"
+                           <?php disabled(!$license_valid); ?>>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('A string identifying your platform (e.g. your shop name). Used as orderPlatformid in the API. Defaults to your site domain if empty.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label for="wks-order-account-id" class="wssc-label">
+                        <?php esc_html_e('Account ID', 'woo-kontor-sync'); ?>
+                    </label>
+                    <input type="number"
+                           id="wks-order-account-id"
+                           name="order_account_id"
+                           value="<?php echo esc_attr($order_account_id); ?>"
+                           class="wssc-input"
+                           min="0"
+                           step="1"
+                           placeholder="10"
+                           <?php disabled(!$license_valid); ?>>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('The Kontor account ID for order assignment (orderAccountid). Ask your Kontor CRM administrator for the correct value.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label for="wks-order-sales-channel" class="wssc-label">
+                        <?php esc_html_e('Sales Channel Name', 'woo-kontor-sync'); ?>
+                    </label>
+                    <input type="text"
+                           id="wks-order-sales-channel"
+                           name="order_sales_channel"
+                           value="<?php echo esc_attr($order_sales_channel); ?>"
+                           class="wssc-input"
+                           placeholder="Webshop"
+                           <?php disabled(!$license_valid); ?>>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('The sales channel name sent with each order (e.g. "Webshop", "Online Store").', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label for="wks-order-sync-interval" class="wssc-label">
+                        <?php esc_html_e('Order Sync Interval', 'woo-kontor-sync'); ?>
+                    </label>
+                    <select id="wks-order-sync-interval" name="order_sync_interval" class="wssc-select" <?php disabled(!$license_valid); ?>>
+                        <?php foreach ($intervals as $key => $interval): ?>
+                            <option value="<?php echo esc_attr($key); ?>" <?php selected($order_sync_interval, $key); ?>>
+                                <?php echo esc_html($interval['display']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('How often the scheduled order sync should run as a catch-up for any missed real-time uploads.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Configuration -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">

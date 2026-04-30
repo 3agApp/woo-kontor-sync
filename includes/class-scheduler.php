@@ -131,6 +131,32 @@ class WKS_Scheduler {
     }
 
     /**
+     * Schedule order sync
+     */
+    public function schedule_order_sync($interval = null) {
+        if (!$interval) {
+            $interval = get_option('wks_order_sync_interval', 'hourly');
+        }
+
+        wp_clear_scheduled_hook('wks_order_sync_event');
+
+        $interval_seconds = $this->get_interval_seconds($interval);
+        wp_schedule_event(time() + $interval_seconds, $interval, 'wks_order_sync_event');
+
+        update_option('wks_order_sync_interval', $interval);
+
+        return true;
+    }
+
+    /**
+     * Unschedule order sync
+     */
+    public function unschedule_order_sync() {
+        wp_clear_scheduled_hook('wks_order_sync_event');
+        return true;
+    }
+
+    /**
      * Reschedule sync (called after each sync)
      */
     public function reschedule() {
@@ -239,6 +265,22 @@ class WKS_Scheduler {
             ]);
         }
 
+        // Check order sync schedule
+        $order_sync_enabled = get_option('wks_order_sync_enabled', false);
+        if ($order_sync_enabled) {
+            $order_next_run = wp_next_scheduled('wks_order_sync_event');
+            if (!$order_next_run) {
+                $order_interval = get_option('wks_order_sync_interval', 'hourly');
+                wp_schedule_event(time(), $order_interval, 'wks_order_sync_event');
+
+                WKS()->logs->add([
+                    'type'    => 'watchdog',
+                    'status'  => 'warning',
+                    'message' => __('Watchdog: Order sync cron was missing. Rescheduled successfully.', 'woo-kontor-sync'),
+                ]);
+            }
+        }
+
         update_option('wks_watchdog_last_check', time());
     }
 
@@ -280,6 +322,8 @@ class WKS_Scheduler {
             'last_sync_human'    => $last_sync ? human_time_diff($last_sync, time()) . ' ' . __('ago', 'woo-kontor-sync') : null,
             'watchdog_last'      => $watchdog_last,
             'watchdog_last_human' => $watchdog_last ? human_time_diff($watchdog_last, time()) . ' ' . __('ago', 'woo-kontor-sync') : null,
+            'order_sync_enabled' => get_option('wks_order_sync_enabled', false),
+            'order_sync_next_run' => wp_next_scheduled('wks_order_sync_event'),
         ];
     }
 

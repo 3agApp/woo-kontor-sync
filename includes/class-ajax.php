@@ -32,6 +32,7 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_fetch_shops', [$this, 'fetch_shops']);
         add_action('wp_ajax_wks_fetch_categories', [$this, 'fetch_categories']);
         add_action('wp_ajax_wks_upsert_categories', [$this, 'upsert_categories']);
+        add_action('wp_ajax_wks_run_order_sync', [$this, 'run_order_sync']);
     }
 
     /**
@@ -291,6 +292,30 @@ class WKS_Ajax {
         update_option('wks_manufacturer_filter', $manufacturer_filter);
         update_option('wks_shop_id', $shop_id);
 
+        // Order sync settings
+        $order_sync_enabled  = isset($_POST['order_sync_enabled']) && $_POST['order_sync_enabled'] === 'true';
+        $order_statuses      = isset($_POST['order_statuses']) && is_array($_POST['order_statuses'])
+            ? array_map('sanitize_text_field', $_POST['order_statuses'])
+            : ['processing', 'completed'];
+        $order_platform_id   = isset($_POST['order_platform_id']) ? sanitize_text_field(wp_unslash($_POST['order_platform_id'])) : '';
+        $order_account_id    = isset($_POST['order_account_id']) ? absint($_POST['order_account_id']) : 0;
+        $order_sales_channel = isset($_POST['order_sales_channel']) ? sanitize_text_field(wp_unslash($_POST['order_sales_channel'])) : 'Webshop';
+        $order_sync_interval = isset($_POST['order_sync_interval']) ? sanitize_text_field($_POST['order_sync_interval']) : 'hourly';
+
+        update_option('wks_order_sync_enabled', $order_sync_enabled);
+        update_option('wks_order_statuses', $order_statuses);
+        update_option('wks_order_platform_id', $order_platform_id);
+        update_option('wks_order_account_id', $order_account_id);
+        update_option('wks_order_sales_channel', $order_sales_channel);
+        update_option('wks_order_sync_interval', $order_sync_interval);
+
+        // Handle order sync scheduling
+        if ($order_sync_enabled && !empty($api_host) && !empty($api_key)) {
+            WKS()->scheduler->schedule_order_sync($order_sync_interval);
+        } else {
+            WKS()->scheduler->unschedule_order_sync();
+        }
+
         // Handle scheduling
         if ($enabled && !empty($api_host) && !empty($api_key)) {
             WKS()->scheduler->schedule($interval);
@@ -509,6 +534,58 @@ class WKS_Ajax {
             'message' => $message,
             'enabled' => $enabled,
         ]);
+    }
+
+    /**
+     * Run manual order sync
+     */
+    public function run_order_sync() {
+        $this->verify_nonce();
+
+        if (!get_option('wks_order_sync_enabled', false)) {
+            wp_send_json_error([
+                'message' => __('Order sync is not enabled. Please enable it in settings first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        if (get_transient('wks_order_sync_running')) {
+            wp_send_json_error([
+                'message' => __('An order sync is already in progress.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        // Rate limiting
+        $last_manual = get_transient('wks_last_manual_order_sync');
+        if ($last_manual !== false) {
+            $wait_time = 30 - (time() - $last_manual);
+            if ($wait_time > 0) {
+                wp_send_json_error([
+                    'message' => sprintf(
+                        __('Please wait %d seconds before starting another order sync.', 'woo-kontor-sync'),
+                        $wait_time
+                    ),
+                ]);
+            }
+        }
+        set_transient('wks_last_manual_order_sync', time(), 60);
+
+        set_transient('wks_order_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $result = WKS()->sync->run_manual_order_sync();
+            delete_transient('wks_order_sync_running');
+
+            if ($result['success']) {
+                wp_send_json_success($result);
+            } else {
+                wp_send_json_error($result);
+            }
+        } catch (Exception $e) {
+            delete_transient('wks_order_sync_running');
+            wp_send_json_error([
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
