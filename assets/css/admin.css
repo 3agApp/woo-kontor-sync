@@ -1992,4 +1992,24 @@
     height: 16px;
     margin-top: 1px;
 }
+
+/* Checkbox Group (Order Statuses) */
+.wssc-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.wssc-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--wssc-gray-700);
+    cursor: pointer;
+}
+
+.wssc-checkbox-label input[type="checkbox"] {
+    margin: 0;
+}
 }

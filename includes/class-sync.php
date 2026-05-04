@@ -27,11 +27,29 @@ class WKS_Sync {
     private $error_messages = [];
 
     /**
+     * Order sync batch size
+     */
+    const ORDER_BATCH_SIZE = 50;
+
+    /**
+     * Current order sync stats
+     */
+    private $order_stats = [];
+
+    /**
+     * Order sync error messages
+     */
+    private $order_error_messages = [];
+
+    /**
      * Constructor
      */
     public function __construct() {
         $this->stats = $this->get_default_stats();
+        $this->order_stats = $this->get_default_order_stats();
         add_action('wks_sync_event', [$this, 'run_scheduled_sync']);
+        add_action('wks_order_sync_event', [$this, 'run_scheduled_order_sync']);
+        add_action('woocommerce_order_status_changed', [$this, 'on_order_status_changed'], 10, 4);
     }
 
     /**
@@ -1044,6 +1062,608 @@ class WKS_Sync {
             'total_count' => $result['total_count'],
             'sample'      => array_slice($result['data'], 0, 3),
         ];
+    }
+
+    /**
+     * Get default order sync stats
+     */
+    private function get_default_order_stats() {
+        return [
+            'total_orders'     => 0,
+            'orders_uploaded'  => 0,
+            'orders_failed'    => 0,
+            'orders_skipped'   => 0,
+            'start_time'       => 0,
+            'end_time'         => 0,
+        ];
+    }
+
+    /**
+     * Run scheduled order sync (with lock)
+     */
+    public function run_scheduled_order_sync() {
+        if (get_transient('wks_order_sync_running')) {
+            return;
+        }
+
+        set_transient('wks_order_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $this->upload_orders('scheduled');
+        } finally {
+            delete_transient('wks_order_sync_running');
+        }
+    }
+
+    /**
+     * Run manual order sync
+     */
+    public function run_manual_order_sync() {
+        return $this->upload_orders('manual');
+    }
+
+    /**
+     * Handle real-time order status change
+     */
+    public function on_order_status_changed($order_id, $old_status, $new_status, $order) {
+        if (!get_option('wks_order_sync_enabled', false)) {
+            return;
+        }
+
+        if (!WKS()->license->is_valid()) {
+            return;
+        }
+
+        $synced_statuses = get_option('wks_order_statuses', ['processing', 'completed']);
+        if (!is_array($synced_statuses)) {
+            $synced_statuses = ['processing', 'completed'];
+        }
+
+        if (!in_array($new_status, $synced_statuses, true)) {
+            return;
+        }
+
+        // Skip if already synced
+        $already_synced = $order->get_meta('_wks_order_synced');
+        if (!empty($already_synced)) {
+            return;
+        }
+
+        $this->upload_single_order($order);
+    }
+
+    /**
+     * Upload a single order to Kontor (real-time)
+     */
+    private function upload_single_order($order) {
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+        $shop_id  = get_option('wks_shop_id', '');
+
+        if (empty($api_host) || empty($api_key) || empty($shop_id)) {
+            return;
+        }
+
+        $order_payload = $this->build_order_payload($order);
+        if (!$order_payload) {
+            return;
+        }
+
+        $payload = [
+            'name'   => 'orders',
+            'meta'   => ['userId' => 'WKS'],
+            'params' => [
+                'shopid'        => $shop_id,
+                'overwrite_all' => false,
+                'orders'        => [$order_payload],
+            ],
+        ];
+
+        $url = $api_host . '/api/v1/kontor/upsert';
+
+        $response = wp_remote_post($url, [
+            'timeout' => 120,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'x-api-key'    => $api_key,
+            ],
+            'body' => wp_json_encode($payload),
+        ]);
+
+        if (is_wp_error($response)) {
+            WKS()->logs->add([
+                'type'    => 'order_sync',
+                'trigger' => 'realtime',
+                'status'  => 'error',
+                'message' => sprintf(
+                    __('Real-time order sync failed for order #%s: %s', 'woo-kontor-sync'),
+                    $order->get_id(),
+                    $response->get_error_message()
+                ),
+            ]);
+            return;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code !== 200 || empty($body['success'])) {
+            $error_msg = isset($body['message']) ? $body['message'] : sprintf(__('HTTP %d', 'woo-kontor-sync'), $code);
+            WKS()->logs->add([
+                'type'    => 'order_sync',
+                'trigger' => 'realtime',
+                'status'  => 'error',
+                'message' => sprintf(
+                    __('Real-time order sync failed for order #%s: %s', 'woo-kontor-sync'),
+                    $order->get_id(),
+                    $error_msg
+                ),
+            ]);
+            return;
+        }
+
+        // Process response — store Kontor auftrnr
+        if (!empty($body['data']) && is_array($body['data'])) {
+            foreach ($body['data'] as $result) {
+                if (isset($result['status']) && $result['status'] === 'ok') {
+                    $order->update_meta_data('_wks_order_synced', time());
+                    if (!empty($result['auftrnr'])) {
+                        $order->update_meta_data('_wks_kontor_auftrnr', sanitize_text_field($result['auftrnr']));
+                    }
+                    $order->save();
+                }
+            }
+        }
+
+        WKS()->logs->add([
+            'type'    => 'order_sync',
+            'trigger' => 'realtime',
+            'status'  => 'success',
+            'message' => sprintf(
+                __('Real-time order sync completed for order #%s', 'woo-kontor-sync'),
+                $order->get_id()
+            ),
+            'stats' => ['orders_uploaded' => 1],
+        ]);
+    }
+
+    /**
+     * Upload orders to Kontor API (batch)
+     */
+    public function upload_orders($trigger = 'manual') {
+        $this->order_stats          = $this->get_default_order_stats();
+        $this->order_error_messages = [];
+
+        if (!WKS()->license->is_valid()) {
+            $this->log_order_error(__('Invalid or expired license. Order sync aborted.', 'woo-kontor-sync'));
+            return [
+                'success' => false,
+                'message' => __('Invalid or expired license.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+        $shop_id  = get_option('wks_shop_id', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            $this->log_order_error(__('API Host or API Key is not configured.', 'woo-kontor-sync'));
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        if (empty($shop_id)) {
+            $this->log_order_error(__('Shop ID is not configured. Please select a shop in settings.', 'woo-kontor-sync'));
+            return [
+                'success' => false,
+                'message' => __('Shop ID is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $this->order_stats['start_time'] = microtime(true);
+
+        set_time_limit(0);
+        wp_raise_memory_limit('admin');
+
+        // Get eligible orders
+        $orders = $this->get_orders_to_sync();
+        $this->order_stats['total_orders'] = count($orders);
+
+        if (empty($orders)) {
+            $this->order_stats['end_time'] = microtime(true);
+            $duration = round($this->order_stats['end_time'] - $this->order_stats['start_time'], 2);
+
+            WKS()->logs->add([
+                'type'    => 'order_sync',
+                'trigger' => $trigger,
+                'status'  => 'success',
+                'message' => __('No new orders to sync.', 'woo-kontor-sync'),
+                'stats'   => $this->order_stats,
+                'duration' => $duration,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => __('No new orders to sync.', 'woo-kontor-sync'),
+                'stats'   => $this->order_stats,
+            ];
+        }
+
+        // Build payloads
+        $order_payloads = [];
+        $order_map      = []; // orderNumber => WC_Order
+
+        foreach ($orders as $order) {
+            $payload = $this->build_order_payload($order);
+            if ($payload) {
+                $order_payloads[] = $payload;
+                $order_map[$payload['orderNumber']] = $order;
+            } else {
+                $this->order_stats['orders_skipped']++;
+                $this->order_error_messages[] = sprintf(
+                    __('Skipped order #%s: failed to build payload.', 'woo-kontor-sync'),
+                    $order->get_id()
+                );
+            }
+        }
+
+        // Send in batches
+        $batches = array_chunk($order_payloads, self::ORDER_BATCH_SIZE);
+
+        foreach ($batches as $batch) {
+            $payload = [
+                'name'   => 'orders',
+                'meta'   => ['userId' => 'WKS'],
+                'params' => [
+                    'shopid'        => $shop_id,
+                    'overwrite_all' => false,
+                    'orders'        => $batch,
+                ],
+            ];
+
+            $url = $api_host . '/api/v1/kontor/upsert';
+
+            $response = wp_remote_post($url, [
+                'timeout' => 120,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'x-api-key'    => $api_key,
+                ],
+                'body' => wp_json_encode($payload),
+            ]);
+
+            if (is_wp_error($response)) {
+                $this->order_stats['orders_failed'] += count($batch);
+                $this->order_error_messages[] = sprintf(
+                    __('API request failed: %s', 'woo-kontor-sync'),
+                    $response->get_error_message()
+                );
+                continue;
+            }
+
+            $code = wp_remote_retrieve_response_code($response);
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+
+            if ($code !== 200 || empty($body['success'])) {
+                $error_msg = isset($body['message']) ? $body['message'] : sprintf(__('HTTP %d', 'woo-kontor-sync'), $code);
+                $this->order_stats['orders_failed'] += count($batch);
+                $this->order_error_messages[] = sprintf(
+                    __('API error: %s', 'woo-kontor-sync'),
+                    $error_msg
+                );
+                continue;
+            }
+
+            // Process per-order results
+            if (!empty($body['data']) && is_array($body['data'])) {
+                foreach ($body['data'] as $result) {
+                    $order_number = isset($result['orderNumber']) ? $result['orderNumber'] : '';
+
+                    if (isset($result['status']) && $result['status'] === 'ok' && isset($order_map[$order_number])) {
+                        $wc_order = $order_map[$order_number];
+                        $wc_order->update_meta_data('_wks_order_synced', time());
+                        if (!empty($result['auftrnr'])) {
+                            $wc_order->update_meta_data('_wks_kontor_auftrnr', sanitize_text_field($result['auftrnr']));
+                        }
+                        $wc_order->save();
+                        $this->order_stats['orders_uploaded']++;
+                    } else {
+                        $this->order_stats['orders_failed']++;
+                        $error_detail = isset($result['message']) ? $result['message'] : __('Unknown error', 'woo-kontor-sync');
+                        $this->order_error_messages[] = sprintf(
+                            __('Order %s failed: %s', 'woo-kontor-sync'),
+                            $order_number,
+                            $error_detail
+                        );
+                    }
+                }
+            }
+        }
+
+        $this->order_stats['end_time'] = microtime(true);
+        $duration = round($this->order_stats['end_time'] - $this->order_stats['start_time'], 2);
+
+        $success = $this->order_stats['orders_failed'] === 0;
+
+        WKS()->logs->add([
+            'type'     => 'order_sync',
+            'trigger'  => $trigger,
+            'status'   => $success ? 'success' : ($this->order_stats['orders_uploaded'] > 0 ? 'warning' : 'error'),
+            'message'  => sprintf(
+                __('Order sync completed in %s seconds. Uploaded: %d, Failed: %d, Skipped: %d', 'woo-kontor-sync'),
+                $duration,
+                $this->order_stats['orders_uploaded'],
+                $this->order_stats['orders_failed'],
+                $this->order_stats['orders_skipped']
+            ),
+            'stats'    => $this->order_stats,
+            'errors'   => $this->order_error_messages,
+            'duration' => $duration,
+        ]);
+
+        // Reschedule
+        $this->reschedule_order_sync();
+
+        return [
+            'success' => true,
+            'message' => sprintf(
+                __('Order sync completed. Uploaded: %d, Failed: %d, Skipped: %d', 'woo-kontor-sync'),
+                $this->order_stats['orders_uploaded'],
+                $this->order_stats['orders_failed'],
+                $this->order_stats['orders_skipped']
+            ),
+            'stats' => $this->order_stats,
+        ];
+    }
+
+    /**
+     * Get WooCommerce orders eligible for sync
+     */
+    private function get_orders_to_sync() {
+        $statuses = get_option('wks_order_statuses', ['processing', 'completed']);
+        if (!is_array($statuses)) {
+            $statuses = ['processing', 'completed'];
+        }
+
+        // Prefix statuses with 'wc-' for WooCommerce query
+        $wc_statuses = array_map(function ($s) {
+            return 'wc-' . $s;
+        }, $statuses);
+
+        $args = [
+            'status'     => $wc_statuses,
+            'limit'      => 500,
+            'orderby'    => 'date',
+            'order'      => 'ASC',
+            'meta_query' => [
+                [
+                    'key'     => '_wks_order_synced',
+                    'compare' => 'NOT EXISTS',
+                ],
+            ],
+        ];
+
+        return wc_get_orders($args);
+    }
+
+    /**
+     * Build API payload for a single WC order
+     */
+    private function build_order_payload($order) {
+        if (!$order instanceof WC_Order) {
+            return null;
+        }
+
+        $platform_id    = get_option('wks_order_platform_id', wp_parse_url(home_url(), PHP_URL_HOST));
+        $sales_channel  = get_option('wks_order_sales_channel', 'Webshop');
+
+        // Determine payment state
+        $status = $order->get_status();
+        $payment_state = in_array($status, ['completed', 'processing'], true) ? 'paid' : 'open';
+
+        // Determine tax status
+        $tax_status = $order->get_prices_include_tax() ? 'gross' : 'net';
+
+        // Get customer group
+        $customer_id = $order->get_customer_id();
+        $customer_group = 'guest';
+        if ($customer_id > 0) {
+            $user = get_userdata($customer_id);
+            if ($user) {
+                $roles = $user->roles;
+                if (in_array('wholesale_customer', $roles, true)) {
+                    $customer_group = 'B2B';
+                } else {
+                    $customer_group = 'B2C';
+                }
+            }
+        }
+
+        // Get language (2-char)
+        $locale = get_locale();
+        $language = substr($locale, 0, 2);
+
+        // Shipping method
+        $shipping_methods = $order->get_shipping_methods();
+        $shipping_method  = '';
+        foreach ($shipping_methods as $method) {
+            $shipping_method = $method->get_method_title();
+            break;
+        }
+
+        // Customer number
+        $customer_number = $customer_id > 0 ? (string) $customer_id : 'guest-' . $order->get_id();
+
+        $payload = [
+            'orderId'              => (string) $order->get_order_number(),
+            'orderPlatformid'      => $platform_id,
+            'orderAccountid'       => '',
+            'orderNumber'          => (string) $order->get_id(),
+            'orderDate'            => $order->get_date_created() ? $order->get_date_created()->format('c') : '',
+            'salesChannelName'     => $sales_channel,
+            'billingAddress'       => $this->build_address_payload($order, 'billing'),
+            'deliveryAddress'      => $this->build_address_payload($order, 'shipping'),
+            'shippingTotal'        => (float) $order->get_shipping_total(),
+            'customerName'         => trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+            'customerNumber'       => $customer_number,
+            'customerEmail'        => $order->get_billing_email(),
+            'customerPhone'        => $order->get_billing_phone(),
+            'customerVatId'        => '',
+            'customerGroup'        => $customer_group,
+            'language'             => $language,
+            'items'                => $this->build_items_payload($order),
+            'paymentMethod'        => $order->get_payment_method(),
+            'paymentMethodName'    => $order->get_payment_method_title(),
+            'paymentTransactionId' => $order->get_transaction_id(),
+            'paymentState'         => $payment_state,
+            'shippingMethod'       => $shipping_method,
+            'taxStatus'            => $tax_status,
+            'remarks'              => $order->get_customer_note(),
+            'currency'             => $order->get_currency(),
+        ];
+
+        return $payload;
+    }
+
+    /**
+     * Build address payload from WC order
+     */
+    private function build_address_payload($order, $type = 'billing') {
+        if ($type === 'shipping') {
+            $first_name = $order->get_shipping_first_name();
+            $last_name  = $order->get_shipping_last_name();
+            $company    = $order->get_shipping_company();
+            $address_1  = $order->get_shipping_address_1();
+            $address_2  = $order->get_shipping_address_2();
+            $city       = $order->get_shipping_city();
+            $postcode   = $order->get_shipping_postcode();
+            $country    = $order->get_shipping_country();
+            $phone      = method_exists($order, 'get_shipping_phone') ? $order->get_shipping_phone() : '';
+
+            // Fall back to billing if shipping is empty
+            if (empty($first_name) && empty($last_name) && empty($address_1)) {
+                return $this->build_address_payload($order, 'billing');
+            }
+        } else {
+            $first_name = $order->get_billing_first_name();
+            $last_name  = $order->get_billing_last_name();
+            $company    = $order->get_billing_company();
+            $address_1  = $order->get_billing_address_1();
+            $address_2  = $order->get_billing_address_2();
+            $city       = $order->get_billing_city();
+            $postcode   = $order->get_billing_postcode();
+            $country    = $order->get_billing_country();
+            $phone      = $order->get_billing_phone();
+        }
+
+        $country_name = '';
+        if (!empty($country)) {
+            $countries = WC()->countries->get_countries();
+            $country_name = isset($countries[$country]) ? $countries[$country] : $country;
+        }
+
+        return [
+            'firstName'         => $first_name,
+            'lastName'          => $last_name,
+            'company'           => $company,
+            'name'              => trim($first_name . ' ' . $last_name),
+            'attn'              => '',
+            'additionalAddress' => $address_2,
+            'department'        => '',
+            'street'            => $address_1,
+            'street2'           => '',
+            'zipcode'           => $postcode,
+            'city'              => $city,
+            'countryName'       => $country_name,
+            'countryCode'       => $country,
+            'phone'             => $phone,
+            'vatId'             => '',
+            'externalId'        => '',
+        ];
+    }
+
+    /**
+     * Build line items payload from WC order
+     */
+    private function build_items_payload($order) {
+        $items   = [];
+        $position = 0;
+
+        foreach ($order->get_items() as $item) {
+            $position++;
+            $product  = $item->get_product();
+            $quantity = $item->get_quantity();
+
+            $sku           = $product ? $product->get_sku() : '';
+            $product_id    = $product ? (string) $product->get_id() : (string) $item->get_product_id();
+            $regular_price = $product ? (float) $product->get_regular_price() : 0;
+
+            // Unit price before line-level discount
+            $unit_price = $quantity > 0 ? (float) $item->get_subtotal() / $quantity : 0;
+
+            // Discount per unit
+            $discount = $regular_price > $unit_price ? round($regular_price - $unit_price, 2) : 0;
+
+            // Total price (after discount)
+            $total_price = (float) $item->get_total();
+
+            // Tax rate
+            $tax_rate = 0;
+            $taxes    = $item->get_taxes();
+            if (!empty($taxes['subtotal'])) {
+                $subtotal = (float) $item->get_subtotal();
+                $tax_total = array_sum(array_map('floatval', $taxes['subtotal']));
+                if ($subtotal > 0) {
+                    $tax_rate = round(($tax_total / $subtotal) * 100, 1);
+                }
+            }
+
+            $items[] = [
+                'itemId'       => (string) $item->get_id(),
+                'productId'    => $product_id,
+                'sku'          => $sku,
+                'quantity'     => $quantity,
+                'unitPrice'    => round($unit_price, 2),
+                'regularPrice' => round($regular_price, 2),
+                'priceFaktor'  => 1,
+                'discount'     => $discount,
+                'totalPrice'   => round($total_price, 2),
+                'description'  => $item->get_name(),
+                'position'     => $position,
+                'taxRate'      => $tax_rate,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Reschedule order sync
+     */
+    private function reschedule_order_sync() {
+        $enabled = get_option('wks_order_sync_enabled', false);
+        if (!$enabled) {
+            return;
+        }
+
+        $interval = get_option('wks_order_sync_interval', 'hourly');
+        wp_clear_scheduled_hook('wks_order_sync_event');
+
+        $interval_seconds = WKS()->scheduler->get_interval_seconds($interval);
+        wp_schedule_event(time() + $interval_seconds, $interval, 'wks_order_sync_event');
+    }
+
+    /**
+     * Log order sync error
+     */
+    private function log_order_error($message) {
+        WKS()->logs->add([
+            'type'    => 'order_sync',
+            'status'  => 'error',
+            'message' => $message,
+        ]);
     }
 
     /**

@@ -111,10 +111,12 @@ class WKS_Admin {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('wks_admin_nonce'),
             'strings'  => [
-                'sync_running'     => __('Sync in progress...', 'woo-kontor-sync'),
-                'sync_complete'    => __('Sync completed!', 'woo-kontor-sync'),
-                'sync_error'       => __('Sync failed!', 'woo-kontor-sync'),
-                'confirm_sync'     => __('Are you sure you want to run a manual sync now?', 'woo-kontor-sync'),
+                'sync_running'       => __('Sync in progress...', 'woo-kontor-sync'),
+                'sync_complete'      => __('Sync completed!', 'woo-kontor-sync'),
+                'sync_error'         => __('Sync failed!', 'woo-kontor-sync'),
+                'confirm_sync'       => __('Are you sure you want to run a manual sync now?', 'woo-kontor-sync'),
+                'confirm_order_sync' => __('Are you sure you want to upload orders to Kontor now?', 'woo-kontor-sync'),
+                'order_sync_running' => __('Syncing orders...', 'woo-kontor-sync'),
                 'confirm_clear_logs' => __('Are you sure you want to clear all logs?', 'woo-kontor-sync'),
                 'testing'          => __('Testing connection...', 'woo-kontor-sync'),
                 'saving'           => __('Saving...', 'woo-kontor-sync'),
@@ -154,6 +156,34 @@ class WKS_Admin {
         register_setting('wks_settings', 'wks_enabled', [
             'type'    => 'boolean',
             'default' => false,
+        ]);
+
+        register_setting('wks_settings', 'wks_order_sync_enabled', [
+            'type'    => 'boolean',
+            'default' => false,
+        ]);
+
+        register_setting('wks_settings', 'wks_order_statuses', [
+            'type'    => 'array',
+            'default' => ['processing', 'completed'],
+        ]);
+
+        register_setting('wks_settings', 'wks_order_platform_id', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => '',
+        ]);
+
+        register_setting('wks_settings', 'wks_order_sales_channel', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'Webshop',
+        ]);
+
+        register_setting('wks_settings', 'wks_order_sync_interval', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'hourly',
         ]);
 
         register_setting('wks_settings', 'wks_manufacturer_filter', [
@@ -233,6 +263,13 @@ class WKS_Admin {
         $enabled              = get_option('wks_enabled', false);
         $manufacturer_filter  = get_option('wks_manufacturer_filter', '');
         $shop_id              = get_option('wks_shop_id', '');
+
+        // Order sync settings
+        $order_sync_enabled   = get_option('wks_order_sync_enabled', false);
+        $order_statuses       = get_option('wks_order_statuses', ['processing', 'completed']);
+        $order_platform_id    = get_option('wks_order_platform_id', '');
+        $order_sales_channel  = get_option('wks_order_sales_channel', 'Webshop');
+        $order_sync_interval  = get_option('wks_order_sync_interval', 'hourly');
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

@@ -81,6 +81,7 @@
             // Dashboard
             $('#wssc-run-sync').on('click', this.runSync.bind(this));
             $('#wssc-toggle-sync').on('change', this.toggleSync.bind(this));
+            $('#wssc-run-order-sync').on('click', this.runOrderSync.bind(this));
 
             // Logs
             $('.wssc-view-log').on('click', this.viewLog.bind(this));
@@ -154,6 +155,40 @@
                 })
                 .fail(function () {
                     WKS.toast(wks_admin.strings.sync_error, 'error');
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Run manual order sync
+         */
+        runOrderSync: function (e) {
+            e.preventDefault();
+
+            if (!confirm('Are you sure you want to upload orders to Kontor now?')) {
+                return;
+            }
+
+            const $btn = $('#wssc-run-order-sync');
+            const originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Syncing orders…');
+
+            this.ajax('wks_run_order_sync', {})
+                .done(function (response) {
+                    if (response.success) {
+                        WKS.toast(response.data.message, 'success');
+                        setTimeout(function () {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        WKS.toast(response.data.message, 'error');
+                        $btn.prop('disabled', false).html(originalHtml);
+                    }
+                })
+                .fail(function () {
+                    WKS.toast('Order sync failed', 'error');
                     $btn.prop('disabled', false).html(originalHtml);
                 });
         },
@@ -590,8 +625,18 @@
                 schedule_interval: $('#wks-schedule-interval').val(),
                 enabled: $('#wks-enabled').is(':checked'),
                 manufacturer_filter: $('#wks-manufacturer-filter').val(),
-                shop_id: $('#wks-shop-id').val()
+                shop_id: $('#wks-shop-id').val(),
+                order_sync_enabled: $('#wks-order-sync-enabled').is(':checked'),
+                order_statuses: [],
+                order_platform_id: $('#wks-order-platform-id').val(),
+                order_account_id: $('#wks-order-account-id').val(),
+                order_sales_channel: $('#wks-order-sales-channel').val(),
+                order_sync_interval: $('#wks-order-sync-interval').val()
             };
+
+            $('input[name="order_statuses[]"]:checked').each(function () {
+                data.order_statuses.push($(this).val());
+            });
 
             this.ajax('wks_save_settings', data)
                 .done(function (response) {
