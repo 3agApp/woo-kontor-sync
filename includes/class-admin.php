@@ -174,12 +174,6 @@ class WKS_Admin {
             'default'           => '',
         ]);
 
-        register_setting('wks_settings', 'wks_order_account_id', [
-            'type'              => 'integer',
-            'sanitize_callback' => 'absint',
-            'default'           => 0,
-        ]);
-
         register_setting('wks_settings', 'wks_order_sales_channel', [
             'type'              => 'string',
             'sanitize_callback' => 'sanitize_text_field',
@@ -274,7 +268,6 @@ class WKS_Admin {
         $order_sync_enabled   = get_option('wks_order_sync_enabled', false);
         $order_statuses       = get_option('wks_order_statuses', ['processing', 'completed']);
         $order_platform_id    = get_option('wks_order_platform_id', '');
-        $order_account_id     = get_option('wks_order_account_id', 0);
         $order_sales_channel  = get_option('wks_order_sales_channel', 'Webshop');
         $order_sync_interval  = get_option('wks_order_sync_interval', 'hourly');
 

@@ -298,14 +298,12 @@ class WKS_Ajax {
             ? array_map('sanitize_text_field', $_POST['order_statuses'])
             : ['processing', 'completed'];
         $order_platform_id   = isset($_POST['order_platform_id']) ? sanitize_text_field(wp_unslash($_POST['order_platform_id'])) : '';
-        $order_account_id    = isset($_POST['order_account_id']) ? absint($_POST['order_account_id']) : 0;
         $order_sales_channel = isset($_POST['order_sales_channel']) ? sanitize_text_field(wp_unslash($_POST['order_sales_channel'])) : 'Webshop';
         $order_sync_interval = isset($_POST['order_sync_interval']) ? sanitize_text_field($_POST['order_sync_interval']) : 'hourly';
 
         update_option('wks_order_sync_enabled', $order_sync_enabled);
         update_option('wks_order_statuses', $order_statuses);
         update_option('wks_order_platform_id', $order_platform_id);
-        update_option('wks_order_account_id', $order_account_id);
         update_option('wks_order_sales_channel', $order_sales_channel);
         update_option('wks_order_sync_interval', $order_sync_interval);
 

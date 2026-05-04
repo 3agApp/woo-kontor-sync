@@ -1457,7 +1457,6 @@ class WKS_Sync {
         }
 
         $platform_id    = get_option('wks_order_platform_id', wp_parse_url(home_url(), PHP_URL_HOST));
-        $account_id     = (int) get_option('wks_order_account_id', 0);
         $sales_channel  = get_option('wks_order_sales_channel', 'Webshop');
 
         // Determine payment state
@@ -1500,7 +1499,7 @@ class WKS_Sync {
         $payload = [
             'orderId'              => (string) $order->get_order_number(),
             'orderPlatformid'      => $platform_id,
-            'orderAccountid'       => $account_id,
+            'orderAccountid'       => '',
             'orderNumber'          => (string) $order->get_id(),
             'orderDate'            => $order->get_date_created() ? $order->get_date_created()->format('c') : '',
             'salesChannelName'     => $sales_channel,

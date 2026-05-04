@@ -288,24 +288,6 @@ if (!defined('ABSPATH')) {
                 </div>
 
                 <div class="wssc-form-row">
-                    <label for="wks-order-account-id" class="wssc-label">
-                        <?php esc_html_e('Account ID', 'woo-kontor-sync'); ?>
-                    </label>
-                    <input type="number"
-                           id="wks-order-account-id"
-                           name="order_account_id"
-                           value="<?php echo esc_attr($order_account_id); ?>"
-                           class="wssc-input"
-                           min="0"
-                           step="1"
-                           placeholder="10"
-                           <?php disabled(!$license_valid); ?>>
-                    <p class="wssc-help-text">
-                        <?php esc_html_e('The Kontor account ID for order assignment (orderAccountid). Ask your Kontor CRM administrator for the correct value.', 'woo-kontor-sync'); ?>
-                    </p>
-                </div>
-
-                <div class="wssc-form-row">
                     <label for="wks-order-sales-channel" class="wssc-label">
                         <?php esc_html_e('Sales Channel Name', 'woo-kontor-sync'); ?>
                     </label>
