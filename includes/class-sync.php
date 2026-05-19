@@ -1018,8 +1018,14 @@ class WKS_Sync {
             return $attachment_id;
         }
 
-        // Download the file
+        // Download the file (SSL verification disabled — Kontor image host may use a self-signed cert)
+        $disable_ssl = function ($args) {
+            $args['sslverify'] = false;
+            return $args;
+        };
+        add_filter('http_request_args', $disable_ssl);
         $tmp = download_url($url, 60);
+        remove_filter('http_request_args', $disable_ssl);
 
         if (is_wp_error($tmp)) {
             return false;

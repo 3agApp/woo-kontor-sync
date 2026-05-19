@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.1.1 =
+* Disabled SSL verification when downloading product images so hosts with self-signed certificates work
 
 = 1.1.0 =
 * Added Shop Type (shoptype) filter for search/products — pick B2B / B2C / EDU to receive shop-specific Shoptitel, Kurztext, Langtext
