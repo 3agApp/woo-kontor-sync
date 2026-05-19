@@ -2012,4 +2012,147 @@
 .wssc-checkbox-label input[type="checkbox"] {
     margin: 0;
 }
+
+/* Settings tabs */
+.wssc-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--wssc-gray-200);
+    margin: 16px 0 24px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+.wssc-tab {
+    background: transparent;
+    border: 0;
+    padding: 12px 18px;
+    cursor: pointer;
+    color: var(--wssc-gray-600);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    border-bottom: 2px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: var(--wssc-transition);
+}
+
+.wssc-tab:hover {
+    color: var(--wssc-primary);
+}
+
+.wssc-tab.is-active {
+    color: var(--wssc-primary);
+    border-bottom-color: var(--wssc-primary);
+    font-weight: 600;
+}
+
+.wssc-tab .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.wssc-tab-panel[hidden] {
+    display: none !important;
+}
+
+.wssc-form-disabled .wssc-tab {
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* Sticky save bar */
+.wssc-sticky-bottom {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding: 16px 0;
+    margin-top: 24px;
+    border-top: 1px solid var(--wssc-gray-200);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
+    z-index: 5;
+}
+
+/* Sync-type cards on Dashboard */
+.wssc-sync-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.wssc-sync-card {
+    background: #fff;
+    border-radius: var(--wssc-radius-lg);
+    box-shadow: var(--wssc-shadow);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: var(--wssc-transition);
+}
+
+.wssc-sync-card:hover {
+    box-shadow: var(--wssc-shadow-md);
+}
+
+.wssc-sync-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wssc-sync-card-head h3 {
+    margin: 0;
+    font-size: 16px;
+    flex: 1;
+}
+
+.wssc-sync-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--wssc-gray-600);
+}
+
+.wssc-sync-card-meta .wssc-muted {
+    color: var(--wssc-gray-400);
+}
+
+.wssc-sync-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.wssc-sync-card-actions .wssc-btn {
+    flex: 1;
+    justify-content: center;
+}
+
+/* New log type badges */
+.wssc-type-order_sync {
+    background: #fce7f3;
+    color: #be185d;
+}
+
+.wssc-type-stock_sync {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+@media (max-width: 782px) {
+    .wssc-tab {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    .wssc-sync-card-actions {
+        flex-wrap: wrap;
+    }
+}
 }

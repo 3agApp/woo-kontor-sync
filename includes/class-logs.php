@@ -135,9 +135,15 @@ class WKS_Logs {
             error_log('WKS Log Insert Error: ' . $wpdb->last_error);
         }
 
-        if ($data['type'] === 'sync' && $data['status'] === 'success') {
-            update_option('wks_last_sync_time', time());
-            update_option('wks_last_sync_stats', $data['stats']);
+        if ($data['status'] === 'success') {
+            if ($data['type'] === 'sync') {
+                update_option('wks_last_sync_time', time());
+                update_option('wks_last_sync_stats', $data['stats']);
+            } elseif ($data['type'] === 'order_sync') {
+                update_option('wks_last_order_sync_time', time());
+            } elseif ($data['type'] === 'stock_sync') {
+                update_option('wks_last_stock_sync_time', time());
+            }
         }
 
         $this->cleanup();

@@ -32,7 +32,9 @@ if (!defined('ABSPATH')) {
                     <label><?php esc_html_e('Type', 'woo-kontor-sync'); ?></label>
                     <select name="type" class="wssc-select">
                         <option value=""><?php esc_html_e('All Types', 'woo-kontor-sync'); ?></option>
-                        <option value="sync" <?php selected($type_filter, 'sync'); ?>><?php esc_html_e('Sync', 'woo-kontor-sync'); ?></option>
+                        <option value="sync" <?php selected($type_filter, 'sync'); ?>><?php esc_html_e('Product Sync', 'woo-kontor-sync'); ?></option>
+                        <option value="stock_sync" <?php selected($type_filter, 'stock_sync'); ?>><?php esc_html_e('Stock Sync', 'woo-kontor-sync'); ?></option>
+                        <option value="order_sync" <?php selected($type_filter, 'order_sync'); ?>><?php esc_html_e('Order Sync', 'woo-kontor-sync'); ?></option>
                         <option value="watchdog" <?php selected($type_filter, 'watchdog'); ?>><?php esc_html_e('Watchdog', 'woo-kontor-sync'); ?></option>
                         <option value="license" <?php selected($type_filter, 'license'); ?>><?php esc_html_e('License', 'woo-kontor-sync'); ?></option>
                     </select>
@@ -105,8 +107,18 @@ if (!defined('ABSPATH')) {
                                     </span>
                                 </td>
                                 <td class="wssc-col-type">
+                                    <?php
+                                    $type_labels = [
+                                        'sync'       => __('Product Sync', 'woo-kontor-sync'),
+                                        'stock_sync' => __('Stock Sync', 'woo-kontor-sync'),
+                                        'order_sync' => __('Order Sync', 'woo-kontor-sync'),
+                                        'watchdog'   => __('Watchdog', 'woo-kontor-sync'),
+                                        'license'    => __('License', 'woo-kontor-sync'),
+                                    ];
+                                    $type_label = isset($type_labels[$log->type]) ? $type_labels[$log->type] : ucfirst(str_replace('_', ' ', $log->type));
+                                    ?>
                                     <span class="wssc-type-badge wssc-type-<?php echo esc_attr($log->type); ?>">
-                                        <?php echo esc_html(ucfirst($log->type)); ?>
+                                        <?php echo esc_html($type_label); ?>
                                     </span>
                                 </td>
                                 <td class="wssc-col-trigger">

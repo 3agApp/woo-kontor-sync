@@ -42,105 +42,126 @@ if (!defined('ABSPATH')) {
         </div>
     <?php endif; ?>
 
-    <!-- Quick Actions -->
+    <!-- Sync Operations -->
     <div class="wssc-section">
-        <div class="wssc-quick-actions">
-            <div class="wssc-action-card wssc-sync-status-card">
-                <div class="wssc-action-icon <?php echo $scheduler_status['enabled'] ? 'wssc-status-active' : 'wssc-status-inactive'; ?>">
-                    <span class="dashicons dashicons-update-alt"></span>
-                </div>
-                <div class="wssc-action-content">
-                    <h3><?php esc_html_e('Sync Status', 'woo-kontor-sync'); ?></h3>
-                    <p class="wssc-status-text">
-                        <?php if ($scheduler_status['enabled']): ?>
-                            <span class="wssc-status-dot wssc-status-dot-active"></span>
-                            <?php esc_html_e('Active', 'woo-kontor-sync'); ?>
-                            - <?php echo esc_html($scheduler_status['interval_display']); ?>
-                        <?php else: ?>
-                            <span class="wssc-status-dot wssc-status-dot-inactive"></span>
-                            <?php esc_html_e('Disabled', 'woo-kontor-sync'); ?>
-                        <?php endif; ?>
-                    </p>
-                    <?php if ($scheduler_status['next_run']): ?>
-                        <p class="wssc-next-run <?php echo !empty($scheduler_status['next_run_overdue']) ? 'wssc-next-run-overdue' : ''; ?>">
+        <?php
+        $settings_url = WKS_Admin::get_page_url('settings');
+        $logs_url     = WKS_Admin::get_page_url('logs');
+
+        $sync_cards = [
+            [
+                'key'         => 'products',
+                'tab'         => 'products',
+                'icon'        => 'dashicons-products',
+                'title'       => __('Products', 'woo-kontor-sync'),
+                'description' => __('Pull products from Kontor (descriptions, prices, images, stock).', 'woo-kontor-sync'),
+                'enabled'     => !empty($scheduler_status['enabled']),
+                'interval'    => $scheduler_status['interval_display'],
+                'next_run'    => !empty($scheduler_status['next_run']) ? $scheduler_status['next_run_human'] : null,
+                'next_overdue' => !empty($scheduler_status['next_run_overdue']),
+                'last_run'    => !empty($scheduler_status['last_sync']) ? $scheduler_status['last_sync_human'] : null,
+                'run_btn_id'  => 'wssc-run-sync',
+                'run_disabled' => !$license_valid,
+            ],
+            [
+                'key'         => 'stock',
+                'tab'         => 'stock',
+                'icon'        => 'dashicons-update',
+                'title'       => __('Stock', 'woo-kontor-sync'),
+                'description' => __('Lightweight refresh of stock quantities only.', 'woo-kontor-sync'),
+                'enabled'     => !empty($scheduler_status['stock_sync_enabled']),
+                'interval'    => null,
+                'next_run'    => !empty($scheduler_status['stock_sync_next_run'])
+                    ? human_time_diff(time(), $scheduler_status['stock_sync_next_run'])
+                    : null,
+                'next_overdue' => !empty($scheduler_status['stock_sync_next_run']) && $scheduler_status['stock_sync_next_run'] < time(),
+                'last_run'    => !empty($scheduler_status['stock_sync_last_run_human']) ? $scheduler_status['stock_sync_last_run_human'] : null,
+                'run_btn_id'  => 'wssc-run-stock-sync',
+                'run_disabled' => !$license_valid,
+            ],
+            [
+                'key'         => 'orders',
+                'tab'         => 'orders',
+                'icon'        => 'dashicons-cart',
+                'title'       => __('Orders', 'woo-kontor-sync'),
+                'description' => __('Upload WooCommerce orders to Kontor.', 'woo-kontor-sync'),
+                'enabled'     => !empty($scheduler_status['order_sync_enabled']),
+                'interval'    => null,
+                'next_run'    => !empty($scheduler_status['order_sync_next_run'])
+                    ? human_time_diff(time(), $scheduler_status['order_sync_next_run'])
+                    : null,
+                'next_overdue' => !empty($scheduler_status['order_sync_next_run']) && $scheduler_status['order_sync_next_run'] < time(),
+                'last_run'    => !empty($scheduler_status['order_sync_last_run_human']) ? $scheduler_status['order_sync_last_run_human'] : null,
+                'run_btn_id'  => 'wssc-run-order-sync',
+                'run_disabled' => !$license_valid || empty($scheduler_status['order_sync_enabled']),
+            ],
+        ];
+        ?>
+
+        <div class="wssc-sync-cards">
+            <?php foreach ($sync_cards as $card): ?>
+                <div class="wssc-sync-card">
+                    <div class="wssc-sync-card-head">
+                        <div class="wssc-action-icon <?php echo $card['enabled'] ? 'wssc-status-active' : 'wssc-status-inactive'; ?>">
+                            <span class="dashicons <?php echo esc_attr($card['icon']); ?>"></span>
+                        </div>
+                        <h3><?php echo esc_html($card['title']); ?></h3>
+                    </div>
+
+                    <div class="wssc-sync-card-meta">
+                        <p>
+                            <?php if ($card['enabled']): ?>
+                                <span class="wssc-status-dot wssc-status-dot-active"></span>
+                                <strong><?php esc_html_e('Active', 'woo-kontor-sync'); ?></strong>
+                                <?php if ($card['interval']): ?>
+                                    — <?php echo esc_html($card['interval']); ?>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="wssc-status-dot wssc-status-dot-inactive"></span>
+                                <strong><?php esc_html_e('Disabled', 'woo-kontor-sync'); ?></strong>
+                            <?php endif; ?>
+                        </p>
+                        <p class="wssc-muted">
                             <?php
-                            printf(
-                                esc_html__('Next run: %s', 'woo-kontor-sync'),
-                                esc_html($scheduler_status['next_run_human'])
-                            );
+                            if ($card['enabled'] && $card['next_run']) {
+                                $next_label = $card['next_overdue']
+                                    ? __('Overdue', 'woo-kontor-sync')
+                                    : sprintf(__('Next run in %s', 'woo-kontor-sync'), $card['next_run']);
+                                echo esc_html($next_label);
+                            } else {
+                                echo esc_html__('Not scheduled', 'woo-kontor-sync');
+                            }
                             ?>
                         </p>
-                    <?php endif; ?>
-                </div>
-                <div class="wssc-action-toggle">
-                    <label class="wssc-switch" <?php echo !$license_valid ? 'title="' . esc_attr__('License required', 'woo-kontor-sync') . '"' : ''; ?>>
-                        <input type="checkbox" id="wssc-toggle-sync" <?php checked($scheduler_status['enabled']); ?> <?php disabled(!$license_valid); ?>>
-                        <span class="wssc-slider"></span>
-                    </label>
-                </div>
-            </div>
+                        <p class="wssc-muted">
+                            <?php
+                            if ($card['last_run']) {
+                                printf(esc_html__('Last run: %s', 'woo-kontor-sync'), esc_html($card['last_run']));
+                            } else {
+                                esc_html_e('Last run: never', 'woo-kontor-sync');
+                            }
+                            ?>
+                        </p>
+                    </div>
 
-            <div class="wssc-action-card">
-                <div class="wssc-action-icon wssc-icon-sync">
-                    <span class="dashicons dashicons-controls-repeat"></span>
-                </div>
-                <div class="wssc-action-content">
-                    <h3><?php esc_html_e('Manual Sync', 'woo-kontor-sync'); ?></h3>
-                    <p><?php esc_html_e('Run sync now regardless of schedule', 'woo-kontor-sync'); ?></p>
-                </div>
-                <button type="button" id="wssc-run-sync" class="wssc-btn wssc-btn-primary" <?php disabled(!$license_valid); ?>>
-                    <span class="dashicons dashicons-update"></span>
-                    <?php esc_html_e('Run Now', 'woo-kontor-sync'); ?>
-                </button>
-            </div>
+                    <div class="wssc-sync-card-actions">
+                        <button type="button" id="<?php echo esc_attr($card['run_btn_id']); ?>" class="wssc-btn wssc-btn-primary wssc-btn-sm" <?php disabled($card['run_disabled']); ?>>
+                            <span class="dashicons dashicons-controls-play"></span>
+                            <?php esc_html_e('Run Now', 'woo-kontor-sync'); ?>
+                        </button>
+                        <a href="<?php echo esc_url($settings_url . '#tab=' . $card['tab']); ?>" class="wssc-btn wssc-btn-secondary wssc-btn-sm">
+                            <span class="dashicons dashicons-admin-settings"></span>
+                            <?php esc_html_e('Configure', 'woo-kontor-sync'); ?>
+                        </a>
+                    </div>
 
-            <div class="wssc-action-card">
-                <div class="wssc-action-icon wssc-icon-time">
-                    <span class="dashicons dashicons-clock"></span>
                 </div>
-                <div class="wssc-action-content">
-                    <h3><?php esc_html_e('Last Sync', 'woo-kontor-sync'); ?></h3>
-                    <p>
-                        <?php if ($scheduler_status['last_sync']): ?>
-                            <?php echo esc_html($scheduler_status['last_sync_human']); ?>
-                        <?php else: ?>
-                            <?php esc_html_e('Never', 'woo-kontor-sync'); ?>
-                        <?php endif; ?>
-                    </p>
-                </div>
-                <a href="<?php echo esc_url(WKS_Admin::get_page_url('logs')); ?>" class="wssc-btn wssc-btn-secondary">
-                    <?php esc_html_e('View Logs', 'woo-kontor-sync'); ?>
-                </a>
-            </div>
-
-            <div class="wssc-action-card">
-                <div class="wssc-action-icon <?php echo $scheduler_status['order_sync_enabled'] ? 'wssc-status-active' : 'wssc-status-inactive'; ?>">
-                    <span class="dashicons dashicons-cart"></span>
-                </div>
-                <div class="wssc-action-content">
-                    <h3><?php esc_html_e('Order Sync', 'woo-kontor-sync'); ?></h3>
-                    <p>
-                        <?php if ($scheduler_status['order_sync_enabled']): ?>
-                            <span class="wssc-status-dot wssc-status-dot-active"></span>
-                            <?php esc_html_e('Active', 'woo-kontor-sync'); ?>
-                            <?php if ($scheduler_status['order_sync_next_run']): ?>
-                                — <?php printf(
-                                    esc_html__('Next: %s', 'woo-kontor-sync'),
-                                    esc_html(human_time_diff(time(), $scheduler_status['order_sync_next_run']))
-                                ); ?>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <span class="wssc-status-dot wssc-status-dot-inactive"></span>
-                            <?php esc_html_e('Disabled', 'woo-kontor-sync'); ?>
-                        <?php endif; ?>
-                    </p>
-                </div>
-                <button type="button" id="wssc-run-order-sync" class="wssc-btn wssc-btn-primary" <?php disabled(!$license_valid || !$scheduler_status['order_sync_enabled']); ?>>
-                    <span class="dashicons dashicons-upload"></span>
-                    <?php esc_html_e('Sync Orders', 'woo-kontor-sync'); ?>
-                </button>
-            </div>
+            <?php endforeach; ?>
         </div>
+
+        <p class="wssc-help-text" style="margin-top: 12px;">
+            <a href="<?php echo esc_url($logs_url); ?>" class="wssc-link"><?php esc_html_e('View sync logs →', 'woo-kontor-sync'); ?></a>
+        </p>
     </div>
 
     <!-- Stats Cards -->

@@ -25,7 +25,6 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_clear_logs', [$this, 'clear_logs']);
         add_action('wp_ajax_wks_get_log_details', [$this, 'get_log_details']);
         add_action('wp_ajax_wks_get_sync_status', [$this, 'get_sync_status']);
-        add_action('wp_ajax_wks_toggle_sync', [$this, 'toggle_sync']);
         add_action('wp_ajax_wks_check_update', [$this, 'check_update']);
         add_action('wp_ajax_wks_install_update', [$this, 'install_update']);
         add_action('wp_ajax_wks_fetch_manufacturers', [$this, 'fetch_manufacturers']);
@@ -33,6 +32,7 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_fetch_categories', [$this, 'fetch_categories']);
         add_action('wp_ajax_wks_upsert_categories', [$this, 'upsert_categories']);
         add_action('wp_ajax_wks_run_order_sync', [$this, 'run_order_sync']);
+        add_action('wp_ajax_wks_run_stock_sync', [$this, 'run_stock_sync']);
     }
 
     /**
@@ -513,45 +513,6 @@ class WKS_Ajax {
     }
 
     /**
-     * Toggle sync enabled/disabled
-     */
-    public function toggle_sync() {
-        $this->verify_nonce();
-
-        if (!WKS()->license->is_valid()) {
-            wp_send_json_error([
-                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
-            ]);
-        }
-
-        $enabled = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
-
-        update_option('wks_enabled', $enabled);
-
-        if ($enabled) {
-            $api_host = get_option('wks_api_host');
-            $api_key  = get_option('wks_api_key');
-            if (empty($api_host) || empty($api_key)) {
-                update_option('wks_enabled', false);
-                wp_send_json_error([
-                    'message' => __('Please configure API Host and API Key in settings first.', 'woo-kontor-sync'),
-                ]);
-            }
-
-            WKS()->scheduler->schedule();
-            $message = __('Sync enabled successfully.', 'woo-kontor-sync');
-        } else {
-            WKS()->scheduler->unschedule();
-            $message = __('Sync disabled.', 'woo-kontor-sync');
-        }
-
-        wp_send_json_success([
-            'message' => $message,
-            'enabled' => $enabled,
-        ]);
-    }
-
-    /**
      * Run manual order sync
      */
     public function run_order_sync() {
@@ -597,6 +558,58 @@ class WKS_Ajax {
             }
         } catch (Exception $e) {
             delete_transient('wks_order_sync_running');
+            wp_send_json_error([
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Run manual stock sync
+     */
+    public function run_stock_sync() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        if (get_transient('wks_stock_sync_running')) {
+            wp_send_json_error([
+                'message' => __('A stock sync is already in progress.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        // Rate limiting (30s between manual runs)
+        $last_manual = get_transient('wks_last_manual_stock_sync');
+        if ($last_manual !== false) {
+            $wait_time = 30 - (time() - $last_manual);
+            if ($wait_time > 0) {
+                wp_send_json_error([
+                    'message' => sprintf(
+                        __('Please wait %d seconds before starting another stock sync.', 'woo-kontor-sync'),
+                        $wait_time
+                    ),
+                ]);
+            }
+        }
+        set_transient('wks_last_manual_stock_sync', time(), 60);
+
+        set_transient('wks_stock_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $result = WKS()->sync->run_manual_stock_sync();
+            delete_transient('wks_stock_sync_running');
+
+            if ($result['success']) {
+                wp_send_json_success($result);
+            } else {
+                wp_send_json_error($result);
+            }
+        } catch (Exception $e) {
+            delete_transient('wks_stock_sync_running');
             wp_send_json_error([
                 'message' => $e->getMessage(),
             ]);

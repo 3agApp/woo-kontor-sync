@@ -26,6 +26,49 @@
             this.bindEvents();
             this.initChart();
             this.initLocalTimes();
+            this.initSettingsTabs();
+        },
+
+        /**
+         * Settings tabs — hash-routed (#tab=products), single form, single save
+         */
+        initSettingsTabs: function () {
+            const $tabs = $('.wssc-tab');
+            if (!$tabs.length) {
+                return;
+            }
+
+            const activate = function (key) {
+                const $target = $tabs.filter('[data-tab="' + key + '"]');
+                if (!$target.length) {
+                    return false;
+                }
+                $tabs.removeClass('is-active');
+                $target.addClass('is-active');
+                $('.wssc-tab-panel').attr('hidden', 'hidden');
+                $('.wssc-tab-panel[data-tab="' + key + '"]').removeAttr('hidden');
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#tab=' + key);
+                }
+                return true;
+            };
+
+            $tabs.on('click', function (e) {
+                e.preventDefault();
+                activate($(this).data('tab'));
+            });
+
+            // In-page links that switch tabs (e.g. "Go to Connection tab" button)
+            $(document).on('click', '.wssc-tab-link', function (e) {
+                e.preventDefault();
+                activate($(this).data('tab'));
+            });
+
+            // Restore from hash, else default to first tab
+            const hashMatch = (window.location.hash || '').match(/tab=([\w-]+)/);
+            if (!hashMatch || !activate(hashMatch[1])) {
+                activate($tabs.first().data('tab'));
+            }
         },
 
         /**
@@ -80,8 +123,8 @@
         bindEvents: function () {
             // Dashboard
             $('#wssc-run-sync').on('click', this.runSync.bind(this));
-            $('#wssc-toggle-sync').on('change', this.toggleSync.bind(this));
             $('#wssc-run-order-sync').on('click', this.runOrderSync.bind(this));
+            $('#wssc-run-stock-sync').on('click', this.runStockSync.bind(this));
 
             // Logs
             $('.wssc-view-log').on('click', this.viewLog.bind(this));
@@ -194,23 +237,36 @@
         },
 
         /**
-         * Toggle sync enabled/disabled
+         * Run manual stock sync
          */
-        toggleSync: function (e) {
-            const enabled = $(e.target).is(':checked');
+        runStockSync: function (e) {
+            e.preventDefault();
 
-            this.ajax('wks_toggle_sync', { enabled: enabled })
+            if (!confirm('Refresh stock levels from Kontor now?')) {
+                return;
+            }
+
+            const $btn = $('#wssc-run-stock-sync');
+            const originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Syncing stock…');
+
+            this.ajax('wks_run_stock_sync', {})
                 .done(function (response) {
                     if (response.success) {
                         WKS.toast(response.data.message, 'success');
+                        setTimeout(function () {
+                            location.reload();
+                        }, 1500);
                     } else {
                         WKS.toast(response.data.message, 'error');
-                        $(e.target).prop('checked', !enabled);
+                        $btn.prop('disabled', false).html(originalHtml);
                     }
                 })
                 .fail(function () {
-                    WKS.toast('An error occurred', 'error');
-                    $(e.target).prop('checked', !enabled);
+                    WKS.toast('Stock sync failed', 'error');
+                    $btn.prop('disabled', false).html(originalHtml);
                 });
         },
 

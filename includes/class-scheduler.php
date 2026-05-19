@@ -364,10 +364,18 @@ class WKS_Scheduler {
             'last_sync_human'    => $last_sync ? human_time_diff($last_sync, time()) . ' ' . __('ago', 'woo-kontor-sync') : null,
             'watchdog_last'      => $watchdog_last,
             'watchdog_last_human' => $watchdog_last ? human_time_diff($watchdog_last, time()) . ' ' . __('ago', 'woo-kontor-sync') : null,
-            'order_sync_enabled' => get_option('wks_order_sync_enabled', false),
-            'order_sync_next_run' => wp_next_scheduled('wks_order_sync_event'),
-            'stock_sync_enabled' => get_option('wks_stock_sync_enabled', false),
-            'stock_sync_next_run' => wp_next_scheduled('wks_stock_sync_event'),
+            'order_sync_enabled'      => get_option('wks_order_sync_enabled', false),
+            'order_sync_next_run'     => wp_next_scheduled('wks_order_sync_event'),
+            'order_sync_last_run'     => get_option('wks_last_order_sync_time'),
+            'order_sync_last_run_human' => get_option('wks_last_order_sync_time')
+                ? human_time_diff(get_option('wks_last_order_sync_time'), time()) . ' ' . __('ago', 'woo-kontor-sync')
+                : null,
+            'stock_sync_enabled'      => get_option('wks_stock_sync_enabled', false),
+            'stock_sync_next_run'     => wp_next_scheduled('wks_stock_sync_event'),
+            'stock_sync_last_run'     => get_option('wks_last_stock_sync_time'),
+            'stock_sync_last_run_human' => get_option('wks_last_stock_sync_time')
+                ? human_time_diff(get_option('wks_last_stock_sync_time'), time()) . ' ' . __('ago', 'woo-kontor-sync')
+                : null,
         ];
     }
 
