@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.7
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,15 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added Shop Type (shoptype) filter for search/products — pick B2B / B2C / EDU to receive shop-specific Shoptitel, Kurztext, Langtext
+* Product name now uses Shoptitel with fallback to Bez1; Kurztext mapped to WooCommerce short description
+* Added dedicated Stock Sync using the new search/stock endpoint — refreshes only stock quantities on its own schedule (default every 15 minutes)
+* Added "Run Stock Now" manual trigger on the dashboard
+* Refactored Settings page into 5 tabs (Connection, Products, Stock, Orders, Categories) with sticky save bar and hash-based deep links
+* Refactored Dashboard with three uniform sync cards (Products, Stock, Orders) showing status, next run, last run, and Run Now
+* Logs filter now recognises Stock Sync and Order Sync; type badges use friendly labels
 
 = 1.0.6 =
 * Added dedicated API endpoints for shops, manufacturers, and categories
