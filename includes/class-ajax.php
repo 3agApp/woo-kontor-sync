@@ -265,6 +265,8 @@ class WKS_Ajax {
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
         $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
         $shop_id              = isset($_POST['shop_id']) ? sanitize_text_field(wp_unslash($_POST['shop_id'])) : '';
+        $shoptype_raw         = isset($_POST['shoptype']) ? strtoupper(sanitize_text_field(wp_unslash($_POST['shoptype']))) : 'B2B';
+        $shoptype             = in_array($shoptype_raw, ['B2B', 'B2C', 'EDU'], true) ? $shoptype_raw : 'B2B';
         $manufacturer_filter  = '';
 
         if (isset($_POST['manufacturer_filter'])) {
@@ -291,6 +293,14 @@ class WKS_Ajax {
         update_option('wks_enabled', $enabled);
         update_option('wks_manufacturer_filter', $manufacturer_filter);
         update_option('wks_shop_id', $shop_id);
+        update_option('wks_shoptype', $shoptype);
+
+        // Stock sync settings
+        $stock_sync_enabled  = isset($_POST['stock_sync_enabled']) && $_POST['stock_sync_enabled'] === 'true';
+        $stock_sync_interval = isset($_POST['stock_sync_interval']) ? sanitize_text_field($_POST['stock_sync_interval']) : 'wks_15min';
+
+        update_option('wks_stock_sync_enabled', $stock_sync_enabled);
+        update_option('wks_stock_sync_interval', $stock_sync_interval);
 
         // Order sync settings
         $order_sync_enabled  = isset($_POST['order_sync_enabled']) && $_POST['order_sync_enabled'] === 'true';
@@ -312,6 +322,13 @@ class WKS_Ajax {
             WKS()->scheduler->schedule_order_sync($order_sync_interval);
         } else {
             WKS()->scheduler->unschedule_order_sync();
+        }
+
+        // Handle stock sync scheduling
+        if ($stock_sync_enabled && !empty($api_host) && !empty($api_key)) {
+            WKS()->scheduler->schedule_stock_sync($stock_sync_interval);
+        } else {
+            WKS()->scheduler->unschedule_stock_sync();
         }
 
         // Handle scheduling

@@ -142,6 +142,31 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
+        <!-- Shop Type -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-tag"></span>
+                    <?php esc_html_e('Shop Type (Shoptype)', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-form-row">
+                    <label for="wks-shoptype" class="wssc-label">
+                        <?php esc_html_e('Shop type for product descriptions', 'woo-kontor-sync'); ?>
+                    </label>
+                    <select id="wks-shoptype" name="shoptype" class="wssc-select" <?php disabled(!$license_valid); ?>>
+                        <?php foreach (['B2B', 'B2C', 'EDU'] as $opt): ?>
+                            <option value="<?php echo esc_attr($opt); ?>" <?php selected($shoptype, $opt); ?>><?php echo esc_html($opt); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('Controls which Shoptitel / Kurztext / Langtext variant Kontor returns. Defaults to B2B.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Shop Selection -->
         <div class="wssc-section wssc-card">
             <div class="wssc-card-header">
@@ -316,6 +341,51 @@ if (!defined('ABSPATH')) {
                     </select>
                     <p class="wssc-help-text">
                         <?php esc_html_e('How often the scheduled order sync should run as a catch-up for any missed real-time uploads.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Sync Configuration -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-update"></span>
+                    <?php esc_html_e('Stock Sync Configuration', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-form-row">
+                    <label class="wssc-label">
+                        <?php esc_html_e('Enable Stock Sync', 'woo-kontor-sync'); ?>
+                    </label>
+                    <div class="wssc-toggle-row">
+                        <label class="wssc-switch">
+                            <input type="checkbox" id="wks-stock-sync-enabled" name="stock_sync_enabled" value="1" <?php checked($stock_sync_enabled); ?> <?php disabled(!$license_valid); ?>>
+                            <span class="wssc-slider"></span>
+                        </label>
+                        <span class="wssc-toggle-label">
+                            <?php esc_html_e('Refresh WooCommerce stock quantities from Kontor on a schedule', 'woo-kontor-sync'); ?>
+                        </span>
+                    </div>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('Uses the lightweight search/stock endpoint to update only stock levels (Lagerbestand) without re-fetching product descriptions or images.', 'woo-kontor-sync'); ?>
+                    </p>
+                </div>
+
+                <div class="wssc-form-row">
+                    <label for="wks-stock-sync-interval" class="wssc-label">
+                        <?php esc_html_e('Stock Sync Interval', 'woo-kontor-sync'); ?>
+                    </label>
+                    <select id="wks-stock-sync-interval" name="stock_sync_interval" class="wssc-select" <?php disabled(!$license_valid); ?>>
+                        <?php foreach ($intervals as $key => $interval): ?>
+                            <option value="<?php echo esc_attr($key); ?>" <?php selected($stock_sync_interval, $key); ?>>
+                                <?php echo esc_html($interval['display']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="wssc-help-text">
+                        <?php esc_html_e('How often stock quantities should be refreshed. A short interval (e.g. every 15 minutes) is recommended.', 'woo-kontor-sync'); ?>
                     </p>
                 </div>
             </div>

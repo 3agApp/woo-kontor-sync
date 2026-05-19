@@ -269,6 +269,11 @@ final class Woo_Kontor_Sync {
                 wp_schedule_event(time(), $interval, 'wks_sync_event');
             }
 
+            if (get_option('wks_stock_sync_enabled', false) && !wp_next_scheduled('wks_stock_sync_event')) {
+                $stock_interval = get_option('wks_stock_sync_interval', 'wks_15min');
+                wp_schedule_event(time(), $stock_interval, 'wks_stock_sync_event');
+            }
+
             if ($this->logs) {
                 $this->logs->add([
                     'type'    => 'watchdog',

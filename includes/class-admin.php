@@ -208,6 +208,26 @@ class WKS_Admin {
             },
             'default'           => '',
         ]);
+
+        register_setting('wks_settings', 'wks_shoptype', [
+            'type'              => 'string',
+            'sanitize_callback' => function ($value) {
+                $value = strtoupper(sanitize_text_field((string) $value));
+                return in_array($value, ['B2B', 'B2C', 'EDU'], true) ? $value : 'B2B';
+            },
+            'default'           => 'B2B',
+        ]);
+
+        register_setting('wks_settings', 'wks_stock_sync_enabled', [
+            'type'    => 'boolean',
+            'default' => false,
+        ]);
+
+        register_setting('wks_settings', 'wks_stock_sync_interval', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'wks_15min',
+        ]);
     }
 
     /**
@@ -263,6 +283,7 @@ class WKS_Admin {
         $enabled              = get_option('wks_enabled', false);
         $manufacturer_filter  = get_option('wks_manufacturer_filter', '');
         $shop_id              = get_option('wks_shop_id', '');
+        $shoptype             = get_option('wks_shoptype', 'B2B');
 
         // Order sync settings
         $order_sync_enabled   = get_option('wks_order_sync_enabled', false);
@@ -270,6 +291,10 @@ class WKS_Admin {
         $order_platform_id    = get_option('wks_order_platform_id', '');
         $order_sales_channel  = get_option('wks_order_sales_channel', 'Webshop');
         $order_sync_interval  = get_option('wks_order_sync_interval', 'hourly');
+
+        // Stock sync settings
+        $stock_sync_enabled   = get_option('wks_stock_sync_enabled', false);
+        $stock_sync_interval  = get_option('wks_stock_sync_interval', 'wks_15min');
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

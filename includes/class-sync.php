@@ -49,6 +49,7 @@ class WKS_Sync {
         $this->order_stats = $this->get_default_order_stats();
         add_action('wks_sync_event', [$this, 'run_scheduled_sync']);
         add_action('wks_order_sync_event', [$this, 'run_scheduled_order_sync']);
+        add_action('wks_stock_sync_event', [$this, 'run_scheduled_stock_sync']);
         add_action('woocommerce_order_status_changed', [$this, 'on_order_status_changed'], 10, 4);
     }
 
@@ -231,10 +232,16 @@ class WKS_Sync {
             ],
         ];
 
+        $filter   = [];
+        $shoptype = get_option('wks_shoptype', 'B2B');
+        if (in_array($shoptype, ['B2B', 'B2C', 'EDU'], true)) {
+            $filter['shoptype'] = $shoptype;
+        }
         if (!empty($manufacturer_ids)) {
-            $payload['filter'] = [
-                'herstellerids' => implode(',', $manufacturer_ids),
-            ];
+            $filter['herstellerids'] = implode(',', $manufacturer_ids);
+        }
+        if (!empty($filter)) {
+            $payload['filter'] = $filter;
         }
 
         $body = wp_json_encode($payload);
@@ -610,14 +617,25 @@ class WKS_Sync {
         // Set core fields
         $product->set_sku($sku);
 
-        // Name
-        if (!empty($kontor['Bez1'])) {
-            $product->set_name($kontor['Bez1']);
+        // Name: prefer shop-specific Shoptitel, fall back to internal Bez1
+        $name = '';
+        if (!empty($kontor['Shoptitel'])) {
+            $name = $kontor['Shoptitel'];
+        } elseif (!empty($kontor['Bez1'])) {
+            $name = $kontor['Bez1'];
+        }
+        if ($name !== '') {
+            $product->set_name($name);
         }
 
-        // Description
-        if (!empty($kontor['Langtext'])) {
-            $product->set_description($kontor['Langtext']);
+        // Short description (Kurztext)
+        if (isset($kontor['Kurztext'])) {
+            $product->set_short_description((string) $kontor['Kurztext']);
+        }
+
+        // Description (Langtext)
+        if (isset($kontor['Langtext'])) {
+            $product->set_description((string) $kontor['Langtext']);
         }
 
         // Regular price (UVP)
@@ -1663,6 +1681,147 @@ class WKS_Sync {
             'type'    => 'order_sync',
             'status'  => 'error',
             'message' => $message,
+        ]);
+    }
+
+    /**
+     * Run scheduled stock sync (with lock)
+     */
+    public function run_scheduled_stock_sync() {
+        if (get_transient('wks_stock_sync_running')) {
+            return;
+        }
+
+        set_transient('wks_stock_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $this->run_stock_sync('scheduled');
+        } finally {
+            delete_transient('wks_stock_sync_running');
+        }
+    }
+
+    /**
+     * Run manual stock sync
+     */
+    public function run_manual_stock_sync() {
+        return $this->run_stock_sync('manual');
+    }
+
+    /**
+     * Refresh stock quantities from Kontor search/stock endpoint
+     */
+    public function run_stock_sync($trigger = 'manual') {
+        if (!WKS()->license->is_valid()) {
+            $this->log_stock_sync($trigger, false, __('Invalid or expired license. Stock sync aborted.', 'woo-kontor-sync'), 0, []);
+            return [
+                'success' => false,
+                'message' => __('Invalid or expired license.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            $this->log_stock_sync($trigger, false, __('API Host or API Key is not configured.', 'woo-kontor-sync'), 0, []);
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        set_time_limit(0);
+        wp_raise_memory_limit('admin');
+
+        $start = microtime(true);
+
+        $result = $this->api_search($api_host, $api_key, ['entity' => 'stock']);
+
+        if (!$result['success']) {
+            $this->log_stock_sync($trigger, false, $result['message'], 0, []);
+            return $result;
+        }
+
+        $rows = isset($result['data']) ? $result['data'] : [];
+
+        $stats = [
+            'total'     => count($rows),
+            'updated'   => 0,
+            'unchanged' => 0,
+            'skipped'   => 0,
+            'errors'    => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $sku = isset($row['Artnr']) ? trim($row['Artnr']) : '';
+            if ($sku === '' || !isset($row['Lagerbestand'])) {
+                $stats['skipped']++;
+                continue;
+            }
+
+            $product_id = wc_get_product_id_by_sku($sku);
+            if (!$product_id) {
+                // SKU not in WooCommerce (e.g. outside manufacturer filter) — silently skip.
+                $stats['skipped']++;
+                continue;
+            }
+
+            try {
+                $product = wc_get_product($product_id);
+                if (!$product) {
+                    $stats['errors']++;
+                    continue;
+                }
+
+                $new_qty       = intval($row['Lagerbestand']);
+                $current_qty   = $product->get_stock_quantity();
+                $manages_stock = $product->get_manage_stock();
+
+                if ($manages_stock && (int) $current_qty === $new_qty) {
+                    $stats['unchanged']++;
+                    continue;
+                }
+
+                $product->set_manage_stock(true);
+                $product->set_stock_quantity($new_qty);
+                $product->set_stock_status($new_qty > 0 ? 'instock' : 'outofstock');
+                $product->save();
+
+                $stats['updated']++;
+            } catch (Exception $e) {
+                $stats['errors']++;
+            }
+        }
+
+        $duration = round(microtime(true) - $start, 2);
+        $this->log_stock_sync($trigger, true, null, $duration, $stats);
+
+        return [
+            'success' => true,
+            'message' => sprintf(
+                __('Stock sync completed. Updated: %d, Unchanged: %d, Skipped: %d, Errors: %d', 'woo-kontor-sync'),
+                $stats['updated'],
+                $stats['unchanged'],
+                $stats['skipped'],
+                $stats['errors']
+            ),
+            'stats'   => $stats,
+        ];
+    }
+
+    /**
+     * Log stock sync result
+     */
+    private function log_stock_sync($trigger, $success, $error_message, $duration, $stats) {
+        WKS()->logs->add([
+            'type'    => 'stock_sync',
+            'trigger' => $trigger,
+            'status'  => $success ? 'success' : 'error',
+            'message' => $success
+                ? sprintf(__('Stock sync completed in %s seconds', 'woo-kontor-sync'), $duration)
+                : $error_message,
+            'stats'   => $stats,
         ]);
     }
 
