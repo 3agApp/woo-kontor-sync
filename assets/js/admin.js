@@ -682,12 +682,14 @@
                 enabled: $('#wks-enabled').is(':checked'),
                 manufacturer_filter: $('#wks-manufacturer-filter').val(),
                 shop_id: $('#wks-shop-id').val(),
+                shoptype: $('#wks-shoptype').val(),
                 order_sync_enabled: $('#wks-order-sync-enabled').is(':checked'),
                 order_statuses: [],
                 order_platform_id: $('#wks-order-platform-id').val(),
-                order_account_id: $('#wks-order-account-id').val(),
                 order_sales_channel: $('#wks-order-sales-channel').val(),
-                order_sync_interval: $('#wks-order-sync-interval').val()
+                order_sync_interval: $('#wks-order-sync-interval').val(),
+                stock_sync_enabled: $('#wks-stock-sync-enabled').is(':checked'),
+                stock_sync_interval: $('#wks-stock-sync-interval').val()
             };
 
             $('input[name="order_statuses[]"]:checked').each(function () {

@@ -273,9 +273,8 @@ class WKS_License {
 
         update_option('wks_enabled', true);
 
-        $interval = get_option('wks_schedule_interval', 'hourly');
         if (class_exists('WKS_Scheduler') && WKS()->scheduler) {
-            WKS()->scheduler->schedule($interval);
+            WKS()->scheduler->reschedule_all();
         }
 
         if (class_exists('WKS_Logs') && WKS()->logs) {

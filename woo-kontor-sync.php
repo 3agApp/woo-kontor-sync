@@ -3,7 +3,7 @@
  * Plugin Name: Woo Kontor Sync
  * Plugin URI: https://3ag.app/products/woo-kontor-sync
  * Description: Sync WooCommerce products from Kontor CRM via API — import/update products with scheduled and manual sync.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WKS_VERSION', '1.1.1');
+define('WKS_VERSION', '1.1.2');
 define('WKS_PLUGIN_FILE', __FILE__);
 define('WKS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WKS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -263,16 +263,8 @@ final class Woo_Kontor_Sync {
         if (!wp_next_scheduled('wks_watchdog_check')) {
             wp_schedule_event(time(), 'hourly', 'wks_watchdog_check');
 
-            $enabled = get_option('wks_enabled', false);
-            if ($enabled && !wp_next_scheduled('wks_sync_event')) {
-                $interval = get_option('wks_schedule_interval', 'hourly');
-                wp_schedule_event(time(), $interval, 'wks_sync_event');
-            }
-
-            if (get_option('wks_stock_sync_enabled', false) && !wp_next_scheduled('wks_stock_sync_event')) {
-                $stock_interval = get_option('wks_stock_sync_interval', 'wks_15min');
-                wp_schedule_event(time(), $stock_interval, 'wks_stock_sync_event');
-            }
+            // Watchdog was gone — rebuild every sync's schedule from option state.
+            $this->scheduler->reschedule_all();
 
             if ($this->logs) {
                 $this->logs->add([

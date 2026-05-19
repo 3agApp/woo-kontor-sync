@@ -263,7 +263,7 @@ class WKS_Ajax {
         $api_key          = isset($_POST['api_key']) ? trim(wp_unslash($_POST['api_key'])) : '';
         $image_prefix_url = isset($_POST['image_prefix_url']) ? esc_url_raw($_POST['image_prefix_url']) : '';
         $interval         = isset($_POST['schedule_interval']) ? sanitize_text_field($_POST['schedule_interval']) : 'hourly';
-        $enabled              = isset($_POST['enabled']) && $_POST['enabled'] === 'true';
+        $enabled              = isset($_POST['enabled']) && filter_var(wp_unslash($_POST['enabled']), FILTER_VALIDATE_BOOLEAN);
         $shop_id              = isset($_POST['shop_id']) ? sanitize_text_field(wp_unslash($_POST['shop_id'])) : '';
         $shoptype_raw         = isset($_POST['shoptype']) ? strtoupper(sanitize_text_field(wp_unslash($_POST['shoptype']))) : 'B2B';
         $shoptype             = in_array($shoptype_raw, ['B2B', 'B2C', 'EDU'], true) ? $shoptype_raw : 'B2B';
@@ -296,14 +296,14 @@ class WKS_Ajax {
         update_option('wks_shoptype', $shoptype);
 
         // Stock sync settings
-        $stock_sync_enabled  = isset($_POST['stock_sync_enabled']) && $_POST['stock_sync_enabled'] === 'true';
+        $stock_sync_enabled  = isset($_POST['stock_sync_enabled']) && filter_var(wp_unslash($_POST['stock_sync_enabled']), FILTER_VALIDATE_BOOLEAN);
         $stock_sync_interval = isset($_POST['stock_sync_interval']) ? sanitize_text_field($_POST['stock_sync_interval']) : 'wks_15min';
 
         update_option('wks_stock_sync_enabled', $stock_sync_enabled);
         update_option('wks_stock_sync_interval', $stock_sync_interval);
 
         // Order sync settings
-        $order_sync_enabled  = isset($_POST['order_sync_enabled']) && $_POST['order_sync_enabled'] === 'true';
+        $order_sync_enabled  = isset($_POST['order_sync_enabled']) && filter_var(wp_unslash($_POST['order_sync_enabled']), FILTER_VALIDATE_BOOLEAN);
         $order_statuses      = isset($_POST['order_statuses']) && is_array($_POST['order_statuses'])
             ? array_map('sanitize_text_field', $_POST['order_statuses'])
             : ['processing', 'completed'];
@@ -317,26 +317,8 @@ class WKS_Ajax {
         update_option('wks_order_sales_channel', $order_sales_channel);
         update_option('wks_order_sync_interval', $order_sync_interval);
 
-        // Handle order sync scheduling
-        if ($order_sync_enabled && !empty($api_host) && !empty($api_key)) {
-            WKS()->scheduler->schedule_order_sync($order_sync_interval);
-        } else {
-            WKS()->scheduler->unschedule_order_sync();
-        }
-
-        // Handle stock sync scheduling
-        if ($stock_sync_enabled && !empty($api_host) && !empty($api_key)) {
-            WKS()->scheduler->schedule_stock_sync($stock_sync_interval);
-        } else {
-            WKS()->scheduler->unschedule_stock_sync();
-        }
-
-        // Handle scheduling
-        if ($enabled && !empty($api_host) && !empty($api_key)) {
-            WKS()->scheduler->schedule($interval);
-        } else {
-            WKS()->scheduler->unschedule();
-        }
+        // Rebuild every sync's cron from current option state.
+        WKS()->scheduler->reschedule_all();
 
         wp_send_json_success([
             'message' => __('Settings saved successfully.', 'woo-kontor-sync'),
@@ -425,7 +407,7 @@ class WKS_Ajax {
 
         update_option('wks_enabled', false);
         delete_option('wks_sync_disabled_by_license');
-        WKS()->scheduler->unschedule();
+        WKS()->scheduler->reschedule_all();
 
         if ($result['success']) {
             wp_send_json_success([

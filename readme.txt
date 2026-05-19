@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,12 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.1.2 =
+* Fixed: Stock Sync and Shop Type settings reverted on every save because the AJAX form didn't include those fields
+* Fixed: Watchdog now reschedules overdue Stock Sync and Order Sync crons, not just product sync
+* Fixed: Saving the Settings page now always rebuilds every enabled sync's schedule, recovering from stuck crons
+* Refactored: Scheduler adopted the unified per-sync reschedule pattern from woo-nalda-sync
 
 = 1.1.1 =
 * Disabled SSL verification when downloading product images so hosts with self-signed certificates work

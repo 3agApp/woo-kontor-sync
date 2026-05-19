@@ -78,124 +78,113 @@ class WKS_Scheduler {
     }
 
     /**
-     * Schedule sync
+     * Schedule a cron event. Generic — used by every sync type.
+     *
+     * If $force is false and a future run is already within the interval, keep it.
+     * Otherwise clear the hook and schedule a fresh run interval_seconds in the future.
      */
-    public function schedule($interval = null, $force = false) {
+    public function schedule($event_name, $interval = null, $force = false) {
         if (!$interval) {
-            $interval = get_option('wks_schedule_interval', 'hourly');
+            $interval = 'hourly';
         }
 
-        $current_interval = get_option('wks_schedule_interval', 'hourly');
-        $next_scheduled   = wp_next_scheduled('wks_sync_event');
+        $next_scheduled   = wp_next_scheduled($event_name);
         $interval_seconds = $this->get_interval_seconds($interval);
 
         if (!$force && $next_scheduled) {
             $time_until_next = $next_scheduled - time();
-
-            if ($interval === $current_interval && $time_until_next > 0 && $time_until_next <= $interval_seconds) {
-                if (!wp_next_scheduled('wks_watchdog_check')) {
-                    wp_schedule_event(time(), 'hourly', 'wks_watchdog_check');
-                }
-                return true;
-            }
-
-            if ($interval !== $current_interval && $time_until_next > 0 && $time_until_next <= $interval_seconds) {
-                update_option('wks_schedule_interval', $interval);
-                if (!wp_next_scheduled('wks_watchdog_check')) {
-                    wp_schedule_event(time(), 'hourly', 'wks_watchdog_check');
-                }
+            if ($time_until_next > 0 && $time_until_next <= $interval_seconds) {
+                $this->ensure_watchdog();
                 return true;
             }
         }
 
-        $this->unschedule();
+        wp_clear_scheduled_hook($event_name);
+        wp_schedule_event(time() + $interval_seconds, $interval, $event_name);
+        $this->ensure_watchdog();
 
-        wp_schedule_event(time() + $interval_seconds, $interval, 'wks_sync_event');
+        return true;
+    }
 
+    /**
+     * Unschedule a cron event.
+     */
+    public function unschedule($event_name) {
+        wp_clear_scheduled_hook($event_name);
+        return true;
+    }
+
+    /**
+     * Rebuild every sync's schedule from current option state.
+     * Called by save_settings and by ensure_crons_after_update.
+     */
+    public function reschedule_all() {
+        $this->reschedule_product_sync();
+        $this->reschedule_order_sync();
+        $this->reschedule_stock_sync();
+    }
+
+    /**
+     * Rebuild the product-sync schedule.
+     */
+    public function reschedule_product_sync() {
+        wp_clear_scheduled_hook('wks_sync_event');
+
+        if (get_option('wks_enabled', false) && WKS()->license->is_valid()) {
+            $interval = get_option('wks_schedule_interval', 'hourly');
+            $this->schedule('wks_sync_event', $interval, true);
+            update_option('wks_last_scheduled', time());
+        }
+    }
+
+    /**
+     * Rebuild the order-sync schedule.
+     */
+    public function reschedule_order_sync() {
+        wp_clear_scheduled_hook('wks_order_sync_event');
+
+        if (get_option('wks_order_sync_enabled', false) && WKS()->license->is_valid()) {
+            $interval = get_option('wks_order_sync_interval', 'hourly');
+            $this->schedule('wks_order_sync_event', $interval, true);
+        }
+    }
+
+    /**
+     * Rebuild the stock-sync schedule.
+     */
+    public function reschedule_stock_sync() {
+        wp_clear_scheduled_hook('wks_stock_sync_event');
+
+        if (get_option('wks_stock_sync_enabled', false) && WKS()->license->is_valid()) {
+            $interval = get_option('wks_stock_sync_interval', 'wks_15min');
+            $this->schedule('wks_stock_sync_event', $interval, true);
+        }
+    }
+
+    /**
+     * Post-sync reschedule (called by WKS_Sync::run() at the end of a product sync).
+     * Back-compat alias for reschedule_product_sync().
+     */
+    public function reschedule() {
+        $this->reschedule_product_sync();
+    }
+
+    /**
+     * Ensure the watchdog hook is scheduled.
+     */
+    private function ensure_watchdog() {
         if (!wp_next_scheduled('wks_watchdog_check')) {
             wp_schedule_event(time(), 'hourly', 'wks_watchdog_check');
         }
-
-        update_option('wks_schedule_interval', $interval);
-        update_option('wks_last_scheduled', time());
-
-        return true;
     }
 
     /**
-     * Unschedule sync
+     * Is this cron event so far in the past that we should reschedule it?
+     * Threshold: more than 2 × the interval overdue.
      */
-    public function unschedule() {
-        wp_clear_scheduled_hook('wks_sync_event');
-        return true;
-    }
-
-    /**
-     * Schedule order sync
-     */
-    public function schedule_order_sync($interval = null) {
-        if (!$interval) {
-            $interval = get_option('wks_order_sync_interval', 'hourly');
-        }
-
-        wp_clear_scheduled_hook('wks_order_sync_event');
-
+    private function is_overdue($next_run, $interval) {
         $interval_seconds = $this->get_interval_seconds($interval);
-        wp_schedule_event(time() + $interval_seconds, $interval, 'wks_order_sync_event');
-
-        update_option('wks_order_sync_interval', $interval);
-
-        return true;
-    }
-
-    /**
-     * Unschedule order sync
-     */
-    public function unschedule_order_sync() {
-        wp_clear_scheduled_hook('wks_order_sync_event');
-        return true;
-    }
-
-    /**
-     * Schedule stock sync
-     */
-    public function schedule_stock_sync($interval = null) {
-        if (!$interval) {
-            $interval = get_option('wks_stock_sync_interval', 'wks_15min');
-        }
-
-        wp_clear_scheduled_hook('wks_stock_sync_event');
-
-        $interval_seconds = $this->get_interval_seconds($interval);
-        wp_schedule_event(time() + $interval_seconds, $interval, 'wks_stock_sync_event');
-
-        update_option('wks_stock_sync_interval', $interval);
-
-        return true;
-    }
-
-    /**
-     * Unschedule stock sync
-     */
-    public function unschedule_stock_sync() {
-        wp_clear_scheduled_hook('wks_stock_sync_event');
-        return true;
-    }
-
-    /**
-     * Reschedule sync (called after each sync)
-     */
-    public function reschedule() {
-        $enabled = get_option('wks_enabled', false);
-
-        if (!$enabled) {
-            return;
-        }
-
-        $interval = get_option('wks_schedule_interval', 'hourly');
-
-        wp_clear_scheduled_hook('wks_sync_event');
-        wp_schedule_event(time() + $this->get_interval_seconds($interval), $interval, 'wks_sync_event');
+        return ($next_run - time()) < -($interval_seconds * 2);
     }
 
     /**
@@ -239,88 +228,61 @@ class WKS_Scheduler {
     }
 
     /**
-     * Watchdog check
+     * Watchdog: hourly self-heal pass over every enabled sync.
+     * Reschedules any cron that is missing OR more than 2× the interval overdue.
      */
     public function watchdog_check() {
-        $enabled = get_option('wks_enabled', false);
-
-        if (!$enabled) {
-            return;
-        }
-
         if (!WKS()->license->is_valid()) {
             WKS()->logs->add([
                 'type'    => 'watchdog',
+                'trigger' => 'scheduled',
                 'status'  => 'warning',
-                'message' => __('Watchdog: License invalid. Sync disabled.', 'woo-kontor-sync'),
+                'message' => __('Watchdog: License invalid. All syncs disabled.', 'woo-kontor-sync'),
             ]);
 
             update_option('wks_enabled', false);
-            $this->unschedule();
+            update_option('wks_order_sync_enabled', false);
+            update_option('wks_stock_sync_enabled', false);
+
+            $this->unschedule('wks_sync_event');
+            $this->unschedule('wks_order_sync_event');
+            $this->unschedule('wks_stock_sync_event');
+
+            update_option('wks_watchdog_last_check', time());
             return;
         }
 
-        $next_run = wp_next_scheduled('wks_sync_event');
+        $checks = [
+            ['wks_sync_event',       'wks_enabled',            'wks_schedule_interval',   'reschedule_product_sync', 'hourly'],
+            ['wks_order_sync_event', 'wks_order_sync_enabled', 'wks_order_sync_interval', 'reschedule_order_sync',   'hourly'],
+            ['wks_stock_sync_event', 'wks_stock_sync_enabled', 'wks_stock_sync_interval', 'reschedule_stock_sync',   'wks_15min'],
+        ];
 
-        if (!$next_run) {
-            $interval = get_option('wks_schedule_interval', 'hourly');
-            wp_schedule_event(time(), $interval, 'wks_sync_event');
-
-            WKS()->logs->add([
-                'type'    => 'watchdog',
-                'status'  => 'warning',
-                'message' => __('Watchdog: Sync cron was missing. Rescheduled successfully.', 'woo-kontor-sync'),
-            ]);
-
-            return;
-        }
-
-        $interval           = get_option('wks_schedule_interval', 'hourly');
-        $interval_seconds   = $this->get_interval_seconds($interval);
-        $overdue_threshold  = $interval_seconds * 2;
-        $time_diff          = $next_run - time();
-
-        if ($time_diff < -$overdue_threshold) {
-            wp_clear_scheduled_hook('wks_sync_event');
-            wp_schedule_event(time(), $interval, 'wks_sync_event');
-
-            WKS()->logs->add([
-                'type'    => 'watchdog',
-                'status'  => 'warning',
-                'message' => __('Watchdog: Sync cron was stuck/overdue. Rescheduled successfully.', 'woo-kontor-sync'),
-            ]);
-        }
-
-        // Check order sync schedule
-        $order_sync_enabled = get_option('wks_order_sync_enabled', false);
-        if ($order_sync_enabled) {
-            $order_next_run = wp_next_scheduled('wks_order_sync_event');
-            if (!$order_next_run) {
-                $order_interval = get_option('wks_order_sync_interval', 'hourly');
-                wp_schedule_event(time(), $order_interval, 'wks_order_sync_event');
-
-                WKS()->logs->add([
-                    'type'    => 'watchdog',
-                    'status'  => 'warning',
-                    'message' => __('Watchdog: Order sync cron was missing. Rescheduled successfully.', 'woo-kontor-sync'),
-                ]);
+        $rescheduled = [];
+        foreach ($checks as $check) {
+            list($event, $enabled_opt, $interval_opt, $reschedule_method, $default_interval) = $check;
+            if (!get_option($enabled_opt, false)) {
+                continue;
+            }
+            $next_run = wp_next_scheduled($event);
+            $interval = get_option($interval_opt, $default_interval);
+            if (!$next_run || $this->is_overdue($next_run, $interval)) {
+                $this->$reschedule_method();
+                $rescheduled[] = $event;
             }
         }
 
-        // Check stock sync schedule
-        $stock_sync_enabled = get_option('wks_stock_sync_enabled', false);
-        if ($stock_sync_enabled) {
-            $stock_next_run = wp_next_scheduled('wks_stock_sync_event');
-            if (!$stock_next_run) {
-                $stock_interval = get_option('wks_stock_sync_interval', 'wks_15min');
-                wp_schedule_event(time(), $stock_interval, 'wks_stock_sync_event');
-
-                WKS()->logs->add([
-                    'type'    => 'watchdog',
-                    'status'  => 'warning',
-                    'message' => __('Watchdog: Stock sync cron was missing. Rescheduled successfully.', 'woo-kontor-sync'),
-                ]);
-            }
+        if (!empty($rescheduled)) {
+            WKS()->logs->add([
+                'type'    => 'watchdog',
+                'trigger' => 'scheduled',
+                'status'  => 'warning',
+                'message' => sprintf(
+                    /* translators: %s: comma-separated list of cron event names */
+                    __('Watchdog: Rescheduled stuck crons: %s', 'woo-kontor-sync'),
+                    implode(', ', $rescheduled)
+                ),
+            ]);
         }
 
         update_option('wks_watchdog_last_check', time());
