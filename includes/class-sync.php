@@ -42,6 +42,14 @@ class WKS_Sync {
     private $order_error_messages = [];
 
     /**
+     * In-memory cache for Kontor Katid -> WC term_id lookups during a sync run.
+     * Built lazily on first call to get_term_id_by_kontor_katid().
+     *
+     * @var array<string,int>|null
+     */
+    private $katid_to_term_id = null;
+
+    /**
      * Constructor
      */
     public function __construct() {
@@ -100,8 +108,9 @@ class WKS_Sync {
      * Main sync process
      */
     public function run($trigger = 'manual') {
-        $this->stats          = $this->get_default_stats();
-        $this->error_messages = [];
+        $this->stats           = $this->get_default_stats();
+        $this->error_messages  = [];
+        $this->katid_to_term_id = null;
 
         // Check license
         if (!WKS()->license->is_valid()) {
@@ -693,10 +702,14 @@ class WKS_Sync {
         $product->save();
         $product_id = $product->get_id();
 
-        // Handle categories (new hierarchical format or legacy Katname)
-        if (!empty($kontor['categories']) && is_array($kontor['categories'])) {
+        // Categories — Kontor returns a comma-separated string of Katids in the `Categories` field.
+        if (isset($kontor['Categories']) && $kontor['Categories'] !== '') {
+            $this->assign_categories_from_kontor_string($product_id, (string) $kontor['Categories']);
+        } elseif (!empty($kontor['categories']) && is_array($kontor['categories'])) {
+            // Back-compat: legacy hierarchical-array shape (not produced by the current API).
             $this->assign_categories_hierarchical($product_id, $kontor['categories']);
         } elseif (!empty($kontor['Katname'])) {
+            // Legacy single-category-by-name fallback.
             $this->assign_category($product_id, $kontor['Katname']);
         }
 
@@ -736,6 +749,75 @@ class WKS_Sync {
         }
 
         wp_set_object_terms($product_id, [$term_id], 'product_cat');
+    }
+
+    /**
+     * Resolve a Kontor Katid (from the product `Categories` string) to a WC term_id.
+     *
+     * Builds an in-memory map on first call, then reuses it for the rest of the sync run.
+     * Resolution order:
+     *   1. Explicit `_wks_kontor_katid` term meta value match.
+     *   2. Raw `term_id` match (build_categories_for_upsert() sends term_id as katid when no meta is stored).
+     *
+     * Returns 0 if no WC category matches.
+     */
+    private function get_term_id_by_kontor_katid($katid) {
+        if ($this->katid_to_term_id === null) {
+            $this->katid_to_term_id = [];
+
+            $term_ids = get_terms([
+                'taxonomy'   => 'product_cat',
+                'hide_empty' => false,
+                'fields'     => 'ids',
+            ]);
+
+            if (is_wp_error($term_ids) || empty($term_ids)) {
+                return 0;
+            }
+
+            // Prime the term meta cache so the loop below issues at most one query.
+            update_meta_cache('term', $term_ids);
+
+            // Layer 1: raw term_id as katid (upsert fallback when no meta is stored).
+            foreach ($term_ids as $tid) {
+                $this->katid_to_term_id[(string) $tid] = (int) $tid;
+            }
+
+            // Layer 2: explicit _wks_kontor_katid meta wins on collisions.
+            foreach ($term_ids as $tid) {
+                $stored = get_term_meta($tid, '_wks_kontor_katid', true);
+                if (is_string($stored) && $stored !== '') {
+                    $this->katid_to_term_id[$stored] = (int) $tid;
+                }
+            }
+        }
+
+        $key = trim((string) $katid);
+        return isset($this->katid_to_term_id[$key]) ? $this->katid_to_term_id[$key] : 0;
+    }
+
+    /**
+     * Assign WC categories to a product from the Kontor `Categories` comma-separated Katid string.
+     * Replaces (does not append to) the product's existing category set.
+     */
+    private function assign_categories_from_kontor_string($product_id, $categories_str) {
+        $parts = array_filter(array_map('trim', explode(',', (string) $categories_str)));
+        if (empty($parts)) {
+            return;
+        }
+
+        $term_ids = [];
+        foreach ($parts as $katid) {
+            $tid = $this->get_term_id_by_kontor_katid($katid);
+            if ($tid > 0) {
+                $term_ids[] = $tid;
+            }
+            // Unresolved Katids are Katids from other Kontor shops; silently ignored.
+        }
+
+        if (!empty($term_ids)) {
+            wp_set_object_terms($product_id, array_values(array_unique($term_ids)), 'product_cat', false);
+        }
     }
 
     /**

@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.1.3 =
+* Fixed: Imported products are now assigned to WooCommerce categories based on the `Categories` field from the Kontor product search API. Previously this field was ignored and products landed uncategorized.
 
 = 1.1.2 =
 * Fixed: Stock Sync and Shop Type settings reverted on every save because the AJAX form didn't include those fields
