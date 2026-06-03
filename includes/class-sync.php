@@ -671,8 +671,15 @@ class WKS_Sync {
         }
 
         // Manufacturer / Brand as meta
+        $manufacturer_name = '';
+        $manufacturer_id   = '';
         if (!empty($kontor['Hersteller'])) {
-            $product->update_meta_data('_manufacturer', sanitize_text_field($kontor['Hersteller']));
+            $manufacturer_name = sanitize_text_field($kontor['Hersteller']);
+            $product->update_meta_data('_manufacturer', $manufacturer_name);
+        }
+        if (!empty($kontor['Herstellerid'])) {
+            $manufacturer_id = sanitize_text_field($kontor['Herstellerid']);
+            $product->update_meta_data('_kontor_manufacturer_id', $manufacturer_id);
         }
 
         // MPN as meta
@@ -713,6 +720,11 @@ class WKS_Sync {
             $this->assign_category($product_id, $kontor['Katname']);
         }
 
+        // WooCommerce Product Brands — Kontor `Hersteller` is the product brand.
+        if ($manufacturer_name !== '') {
+            $this->assign_brand($product_id, $manufacturer_name, $manufacturer_id);
+        }
+
         // Handle images
         if (!empty($image_prefix)) {
             $this->handle_images($product, $kontor, $image_prefix);
@@ -749,6 +761,75 @@ class WKS_Sync {
         }
 
         wp_set_object_terms($product_id, [$term_id], 'product_cat');
+    }
+
+    /**
+     * Assign WooCommerce Product Brand from Kontor manufacturer data.
+     */
+    private function assign_brand($product_id, $brand_name, $manufacturer_id = '') {
+        $brand_name = trim((string) $brand_name);
+        if ($brand_name === '' || !taxonomy_exists('product_brand')) {
+            return;
+        }
+
+        $manufacturer_id = trim((string) $manufacturer_id);
+        $term_id         = 0;
+
+        if ($manufacturer_id !== '') {
+            $terms = get_terms([
+                'taxonomy'   => 'product_brand',
+                'meta_key'   => '_wks_kontor_herstellerid',
+                'meta_value' => $manufacturer_id,
+                'hide_empty' => false,
+                'number'     => 1,
+            ]);
+
+            if (!empty($terms) && !is_wp_error($terms)) {
+                $term    = $terms[0];
+                $term_id = (int) $term->term_id;
+
+                if ($term->name !== $brand_name) {
+                    wp_update_term($term_id, 'product_brand', [
+                        'name' => $brand_name,
+                    ]);
+                }
+            }
+        }
+
+        if ($term_id <= 0) {
+            $term = get_term_by('name', $brand_name, 'product_brand');
+            if ($term && !is_wp_error($term)) {
+                $term_id = (int) $term->term_id;
+            }
+        }
+
+        if ($term_id <= 0) {
+            $result = wp_insert_term($brand_name, 'product_brand');
+            if (is_wp_error($result)) {
+                if ($result->get_error_code() !== 'term_exists') {
+                    return;
+                }
+
+                $existing = $result->get_error_data('term_exists');
+                if (is_array($existing) && isset($existing['term_id'])) {
+                    $term_id = (int) $existing['term_id'];
+                } else {
+                    $term_id = (int) $existing;
+                }
+            } else {
+                $term_id = (int) $result['term_id'];
+            }
+        }
+
+        if ($term_id <= 0) {
+            return;
+        }
+
+        if ($manufacturer_id !== '') {
+            update_term_meta($term_id, '_wks_kontor_herstellerid', $manufacturer_id);
+        }
+
+        wp_set_object_terms($product_id, [$term_id], 'product_brand', false);
     }
 
     /**
