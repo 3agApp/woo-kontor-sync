@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ Woo Kontor Sync is a premium WordPress plugin that automatically imports and upd
 * **Category Mapping** – Automatically creates and assigns product categories from Kontor
 * **Image Sideloading** – Downloads and attaches product images with intelligent change detection
 * **EAN, MPN, Manufacturer** – Stores additional product metadata from Kontor
-* **Paginated API** – Fetches products in configurable batches for optimal performance
+* **Paginated API** – Fetches products in fixed 500-item pages for stable imports
 * **Watchdog Protection** – Automatic recovery if scheduled sync stops working
 * **Detailed Logs** – Complete history of all sync operations with statistics
 * **Modern Admin UI** – Clean, intuitive dashboard with charts and activity tracking
@@ -72,6 +72,9 @@ The sync will fail gracefully and log the error. The watchdog cron ensures the s
 
 == Changelog ==
 
+= 1.1.5 =
+* Changed: Reduced Kontor product API page size to 500 items for more stable imports.
+
 = 1.1.4 =
 * Fixed: Imported products now create/reuse and assign WooCommerce Product Brands from Kontor `Hersteller`, with `Herstellerid` stored for stable matching.
 
@@ -104,7 +107,7 @@ The sync will fail gracefully and log the error. The watchdog cron ensures the s
 * Stable category ID mapping via _wks_kontor_katid term meta
 
 = 1.0.5 =
-* Removed pagination settings; sync now always fetches with page size 2000 until all pages are complete
+* Removed pagination settings; sync now always fetches with a fixed page size until all pages are complete
 * Switched manufacturer filtering to API-level Hersteller ID filtering
 * Improved manufacturer ID input UX and chip/tag synchronization in settings
 

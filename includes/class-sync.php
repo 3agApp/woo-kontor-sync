@@ -17,6 +17,11 @@ class WKS_Sync {
     const BATCH_SIZE = 50;
 
     /**
+     * Page size for Kontor API product fetching
+     */
+    const API_PAGE_SIZE = 500;
+
+    /**
      * Current sync stats
      */
     private $stats = [];
@@ -187,7 +192,7 @@ class WKS_Sync {
     private function fetch_all_products() {
         $api_host  = rtrim(get_option('wks_api_host', ''), '/');
         $api_key   = get_option('wks_api_key', '');
-        $page_size = 2000;
+        $page_size = self::API_PAGE_SIZE;
         $manufacturer_ids = $this->get_manufacturer_filter_ids();
 
         $all_products = [];
