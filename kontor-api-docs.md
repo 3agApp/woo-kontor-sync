@@ -14,8 +14,6 @@ The documentation is written in English, but API paths, request field names, res
 | Stock sync | Implemented | `search` endpoint with `entity: "stock"` |
 | Manufacturer list | Implemented | `search` endpoint with `entity: "manufacturer"` |
 | Shop list | Implemented | `search` endpoint with `entity: "shops"` |
-| Category list | Implemented | `search` endpoint with `entity: "categories"` and `filter.shopid` |
-| Category upsert | Implemented | `upsert` endpoint with `name: "categories"` |
 | Order upload | Implemented for test database | `upsert` endpoint with `name: "orders"` |
 | Order search/status lookup | Implemented | `search` endpoint with `entity: "orders"` and `filter.shopid`; returns status/tracking fields |
 
@@ -86,8 +84,8 @@ Generic request shape:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `entity` | string | Yes | Name of the entity to search, for example `products`, `stock`, `manufacturer`, `shops`, `categories`, or `orders`. |
-| `filter` | object | Depends on entity | Key/value pairs used to filter the search results. Required for some entities such as `categories` and `orders`. |
+| `entity` | string | Yes | Name of the entity to search, for example `products`, `stock`, `manufacturer`, `shops`, or `orders`. |
+| `filter` | object | Depends on entity | Key/value pairs used to filter the search results. Required for some entities such as `orders`. |
 | `paging` | object | Depends on entity | Used by paginated entities such as `products`. |
 
 ### Product Search
@@ -162,8 +160,7 @@ Example response item:
   "ImageURL_6": null,
   "ImageURL_7": null,
   "ImageURL_8": null,
-  "ImageURL_9": null,
-  "Categories": "D444E512-20AB-45B5-B8C8-C968A934DB52,17"
+  "ImageURL_9": null
 }
 ```
 
@@ -176,7 +173,6 @@ Product field reference:
 | `Herstellerid` | Manufacturer ID. |
 | `Hersteller` | Manufacturer name. |
 | `Mpn` | Manufacturer part number. |
-| `Katname` | Category name. Present in earlier product response examples. |
 | `Gewnetto` | Net weight. |
 | `Artzentralnr` | Central article number. |
 | `Bez1` | Base product title/name. |
@@ -189,7 +185,6 @@ Product field reference:
 | `Lagerbestand` | Stock quantity. |
 | `MainImageURL` | Main product image filename. |
 | `ImageURL_1` to `ImageURL_9` | Additional product image filenames. |
-| `Categories` | Comma-separated category IDs assigned to the product. |
 
 Image URL handling:
 
@@ -373,13 +368,13 @@ Response item fields:
 
 | API field | English meaning |
 | --- | --- |
-| `Shopid` | Kontor shop ID. Use this value as `shopid` when syncing categories or orders. |
+| `Shopid` | Kontor shop ID. Use this value as `shopid` when syncing orders or order status lookups. |
 | `Name` | Shop name. |
 
 Expected usage:
 
 - Populate plugin settings with Kontor shop IDs.
-- Use the selected `shopid` when syncing categories or orders.
+- Use the selected `shopid` when syncing orders or order status lookups.
 
 Current shop IDs:
 
@@ -398,72 +393,6 @@ Current shop IDs:
 | `3ab38157-7269-427c-a9eb-905244c10aaf` | `ToysOnline` |
 | `6b33e5ac-d4d9-4878-9e7d-76a84293b297` | `Waytoplay` |
 | `9b23648d-fed2-4258-b8bd-9b37268fd5c6` | `WikkiStix` |
-
-### Category Search
-
-Use this to retrieve the current category tree stored in Kontor for a specific shop.
-
-```json
-{
-  "entity": "categories",
-  "filter": {
-    "shopid": "3fb38157-7269-427c-a9eb-905244c10a3f"
-  }
-}
-```
-
-Rules:
-
-| Field | Required | Description |
-| --- | --- | --- |
-| `filter.shopid` | Yes | Must be a valid Kontor shop ID. |
-
-Example response:
-
-```json
-{
-  "success": true,
-  "message": "Search completed successfully",
-  "meta": {
-    "durationMs": 2,
-    "rowCount": 3,
-    "totalCount": 3
-  },
-  "data": [
-    {
-      "Katid": "16",
-      "Katidparent": "",
-      "Katname": "test cat"
-    },
-    {
-      "Katid": "15",
-      "Katidparent": "",
-      "Katname": "Uncategorized"
-    },
-    {
-      "Katid": "17",
-      "Katidparent": "16",
-      "Katname": "test sub cat"
-    }
-  ],
-  "errorCode": null,
-  "details": null
-}
-```
-
-Response item fields:
-
-| API field | English meaning |
-| --- | --- |
-| `Katid` | Category ID. |
-| `Katidparent` | Parent category ID. Empty string means root category. |
-| `Katname` | Category name. |
-
-Notes:
-
-- Categories are primarily created/managed in WooCommerce and sent to Kontor with the upsert endpoint.
-- The category list in Kontor can be retrieved for information and verification.
-- Product category assignments depend on category IDs, so WooCommerce category IDs must remain stable over time.
 
 ### Order Search
 
@@ -542,7 +471,6 @@ Notes:
 - Returned fields may change depending on the selected `entity`.
 - If no matching records are found, `data` will be an empty array and `meta.rowCount` will be `0`.
 - For current order status/tracking sync, use this implemented `search` endpoint with `entity: "orders"`.
-- The plugin consumes this endpoint via the scheduled **Order Status Sync** (Settings → Orders), which maps the returned `orderstatus` to a WooCommerce status and stores `provider` / `trackinginfo` / `trackingurl` on the order.
 
 ## Endpoint: Upsert
 
@@ -556,7 +484,7 @@ Common request wrapper:
 
 ```json
 {
-  "name": "categories",
+  "name": "orders",
   "meta": {
     "userId": "CG"
   },
@@ -566,68 +494,9 @@ Common request wrapper:
 
 | Field | Description |
 | --- | --- |
-| `name` | Operation name, for example `categories` or `orders`. |
+| `name` | Operation name, for example `orders`. |
 | `meta.userId` | Required. Can be an arbitrary user ID. Example: `"CG"`. |
 | `params` | Operation-specific payload. |
-
-### Category Upsert
-
-Use this to send WooCommerce categories to Kontor.
-
-```json
-{
-  "name": "categories",
-  "meta": {
-    "userId": "CG"
-  },
-  "params": {
-    "shopid": "9B23648D-FED2-4258-B8BD-9B37268FD5C6",
-    "overwrite_all": true,
-    "categories": [
-      {
-        "katid": "2",
-        "katidparent": "",
-        "katname": "kat-1-1"
-      },
-      {
-        "katid": "3",
-        "katidparent": "",
-        "katname": "kat-1-2"
-      },
-      {
-        "katid": "4",
-        "katidparent": "3",
-        "katname": "kat-3-11111"
-      },
-      {
-        "katid": "5",
-        "katidparent": "3",
-        "katname": "kat-3-222222"
-      }
-    ]
-  }
-}
-```
-
-Field reference:
-
-| API field | Required | English meaning |
-| --- | --- | --- |
-| `name` | Yes | Must be `"categories"`. |
-| `meta.userId` | Yes | Arbitrary user ID. |
-| `params.shopid` | Yes | Valid Kontor shop ID. |
-| `params.overwrite_all` | Yes | If `true`, all categories for the shop are overwritten by the payload. |
-| `params.categories` | Yes | Category tree payload. |
-| `katid` | Yes | Category ID from WooCommerce. Can be a string. Must remain stable. |
-| `katidparent` | Yes | Parent category ID. Can be an empty string for root categories. |
-| `katname` | Yes | Category name. |
-
-Critical warnings:
-
-- Use `overwrite_all: true` carefully. It overwrites the complete category tree for that shop.
-- Product assignments work by category ID only.
-- If WooCommerce changes `katid` values or parent IDs incorrectly, product assignments in Kontor can be lost or mismatched.
-- Parent IDs must refer to valid category IDs in the payload/tree, or be empty for root categories.
 
 ### Order Upsert
 
@@ -816,21 +685,12 @@ Response field reference:
    - `EDU` for education shop.
    - `B2C` for end-customer shops.
 7. Convert image filenames to full URLs using the configured image base URL.
-8. Map `Categories` to WooCommerce categories where applicable.
 
 ### Stock Sync
 
 1. Call `entity: "stock"` frequently for a lightweight SKU/quantity sync.
 2. Match stock rows by `Artnr`.
 3. Update WooCommerce stock quantity from `Lagerbestand`.
-
-### Category Sync From WooCommerce To Kontor
-
-1. WooCommerce is the source of truth for category creation/management.
-2. Fetch Kontor shops with `entity: "shops"`.
-3. Select the correct `shopid`.
-4. Send the full category tree with `name: "categories"`.
-5. Keep `katid` values stable across future syncs.
 
 ### Order Sync From WooCommerce To Kontor
 
