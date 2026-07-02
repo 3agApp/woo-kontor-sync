@@ -360,6 +360,25 @@ if ($is_active) {
             </div>
         </div>
 
+        <!-- Product / Category Export Card -->
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-media-spreadsheet"></span>
+                    <?php esc_html_e('Product Category Export', 'woo-kontor-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <p class="wssc-help-text" style="margin-top: 0; margin-bottom: 16px;">
+                    <?php esc_html_e('Download an Excel workbook with product SKU/title/category IDs and a category ID reference sheet.', 'woo-kontor-sync'); ?>
+                </p>
+                <a href="<?php echo esc_url($export_url); ?>" class="wssc-btn wssc-btn-secondary">
+                    <span class="dashicons dashicons-download"></span>
+                    <?php esc_html_e('Export Product Categories', 'woo-kontor-sync'); ?>
+                </a>
+            </div>
+        </div>
+
         <!-- Plugin Updates Card -->
         <?php
         $update_data     = get_transient('wks_update_data');
