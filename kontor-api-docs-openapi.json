@@ -1,0 +1,1578 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Kontor CRM API (WooCommerce integration)",
+        "version": "1.0.0",
+        "description": "OpenAPI description of the Kontor CRM API used by the WooCommerce integration, reverse-engineered by exercising the LIVE API and recording real request/response behavior.\n\n## Authentication\nEvery request requires the header `x-api-key: <YOUR_API_KEY>`. Send `Content-Type: application/json` (not strictly enforced, but recommended).\n\n> SECURITY: the working API key was exposed in email/chat; rotate it and store the new key in a secret manager — never in source, docs, screenshots, or logs.\n\n## Behavioral notes (verified against the live API)\n- `entity`/`name` are the operation selectors; `entity` is case-insensitive.\n- `products` paging: default & hard-cap `take` = 2000; `take:0` yields `success:false`,`data:null`; `skip` past the end returns empty data.\n- `filter.herstellerids` is OR-combined, matched EXACTLY (no trimming, no leading-zero normalization).\n- `filter.shoptype` (`B2B`/`B2C`/`EDU`, default `B2B`) is not validated (unknown values are echoed); all variants currently share identical text.\n- `stock`/`manufacturer`/`shops` ignore `paging` and `filter`. `Lagerbestand` is decimal on `stock`, integer on `products`.\n- `orders` search honours ONLY `filter.shopid` (other keys ignored); malformed UUID => 500. Result set appears capped around 1000 rows.\n- Upsert `success` stays `true` on business failures; check each row's `status`. Duplicate `orderNumber` (overwrite_all:false) => `fehler` / `Dublette`.\n- Error shapes: standard envelope (`ERR-400`/`ERR-500`), short 401 auth envelope, and ASP.NET `problem+json` for malformed JSON; `GET`/empty body => 405."
+    },
+    "servers": [
+        {
+            "url": "https://sp3api.kontor-crm.de/api/v1",
+            "description": "Kontor API v1"
+        }
+    ],
+    "security": [
+        {
+            "ApiKeyAuth": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "search",
+            "description": "Read operations (products, stock, manufacturers, shops, orders)."
+        },
+        {
+            "name": "upsert",
+            "description": "Write operations (order upload)."
+        }
+    ],
+    "paths": {
+        "/kontor/search": {
+            "post": {
+                "tags": [
+                    "search"
+                ],
+                "operationId": "kontorSearch",
+                "summary": "Read products, stock, manufacturers, shops, or orders",
+                "description": "Polymorphic read endpoint. The operation is selected by `entity` (case-insensitive). Only `products` honours `paging`; only `products`/`orders` honour `filter`; `stock`/`manufacturer`/`shops` ignore both and return the full list.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/ProductsSearchRequest"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/StockSearchRequest"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ManufacturerSearchRequest"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ShopsSearchRequest"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/OrdersSearchRequest"
+                                    }
+                                ],
+                                "discriminator": {
+                                    "propertyName": "entity",
+                                    "mapping": {
+                                        "products": "#/components/schemas/ProductsSearchRequest",
+                                        "stock": "#/components/schemas/StockSearchRequest",
+                                        "manufacturer": "#/components/schemas/ManufacturerSearchRequest",
+                                        "shops": "#/components/schemas/ShopsSearchRequest",
+                                        "orders": "#/components/schemas/OrdersSearchRequest"
+                                    }
+                                }
+                            },
+                            "examples": {
+                                "ProductsSearch": {
+                                    "summary": "products — with filters",
+                                    "value": {
+                                        "entity": "products",
+                                        "paging": {
+                                            "skip": 0,
+                                            "take": 500
+                                        },
+                                        "filter": {
+                                            "herstellerids": "11",
+                                            "shoptype": "B2C"
+                                        }
+                                    }
+                                },
+                                "StockSearch": {
+                                    "summary": "stock — full list",
+                                    "value": {
+                                        "entity": "stock"
+                                    }
+                                },
+                                "ManufacturerSearch": {
+                                    "summary": "manufacturer — full list",
+                                    "value": {
+                                        "entity": "manufacturer"
+                                    }
+                                },
+                                "ShopsSearch": {
+                                    "summary": "shops — full list",
+                                    "value": {
+                                        "entity": "shops"
+                                    }
+                                },
+                                "OrdersSearch": {
+                                    "summary": "orders — by shop",
+                                    "value": {
+                                        "entity": "orders",
+                                        "filter": {
+                                            "shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Search succeeded. `data` item shape depends on `entity`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SearchResponse"
+                                },
+                                "examples": {
+                                    "ProductsResponse": {
+                                        "summary": "products",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Search completed successfully",
+                                            "meta": {
+                                                "durationMs": 186,
+                                                "rowCount": 1,
+                                                "totalCount": 217
+                                            },
+                                            "data": [
+                                                {
+                                                    "Artnr": "ltvbk730",
+                                                    "Artean": "5060023417303",
+                                                    "Herstellerid": "11",
+                                                    "Hersteller": "Le Toy Van",
+                                                    "Mpn": "BK730",
+                                                    "Gewnetto": 0.0,
+                                                    "Artzentralnr": "ltvbk730",
+                                                    "Bez1": "Königliche Garde",
+                                                    "Shoptype": "B2B",
+                                                    "Shoptitel": "Königliche Garde",
+                                                    "Kurztext": "Budkins Holzspielpuppe",
+                                                    "Langtext": "Budkins HolzspielpuppeHöhe: ca. 10 cmPassend zu den Spielhäuser und Fahrzeugen von LeToyVan.Empfohlen ab: \n3 Jahre. ",
+                                                    "Ek": 6.0,
+                                                    "UVP": 6.0,
+                                                    "Lagerbestand": 9,
+                                                    "MainImageURL": "ltv_bk730cutout.jpg",
+                                                    "ImageURL_1": "ltvbk730.jpg",
+                                                    "ImageURL_2": null,
+                                                    "ImageURL_3": null,
+                                                    "ImageURL_4": null,
+                                                    "ImageURL_5": null,
+                                                    "ImageURL_6": null,
+                                                    "ImageURL_7": null,
+                                                    "ImageURL_8": null,
+                                                    "ImageURL_9": null,
+                                                    "Categories": "582e346da96703f3d0d68ad505a62ba0,b65f65403f79de069f02d2bc1ea85ece,4ED38977-FBDB-4ECF-8DA2-CFF10C7E6ED9"
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "StockResponse": {
+                                        "summary": "stock",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Search completed successfully",
+                                            "meta": {
+                                                "durationMs": 90,
+                                                "rowCount": 2955,
+                                                "totalCount": 2955
+                                            },
+                                            "data": [
+                                                {
+                                                    "Artnr": "007-001-001",
+                                                    "Lagerbestand": 111.0
+                                                },
+                                                {
+                                                    "Artnr": "011-006-010",
+                                                    "Lagerbestand": 33.0
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "ManufacturerResponse": {
+                                        "summary": "manufacturer",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Search completed successfully",
+                                            "meta": {
+                                                "durationMs": 3,
+                                                "rowCount": 114,
+                                                "totalCount": 114
+                                            },
+                                            "data": [
+                                                {
+                                                    "Herstellerid": "075",
+                                                    "Hersteller": "Die Spiegelburg"
+                                                },
+                                                {
+                                                    "Herstellerid": "076",
+                                                    "Hersteller": "CrazyClay"
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "ShopsResponse": {
+                                        "summary": "shops",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Search completed successfully",
+                                            "meta": {
+                                                "durationMs": 0,
+                                                "rowCount": 13,
+                                                "totalCount": 13
+                                            },
+                                            "data": [
+                                                {
+                                                    "Shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b",
+                                                    "Name": "Edu-Shop"
+                                                },
+                                                {
+                                                    "Shopid": "9b23648d-fed2-4258-b8bd-9b37268fd5c6",
+                                                    "Name": "WikkiStix"
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "OrdersResponse": {
+                                        "summary": "orders",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Search completed successfully",
+                                            "meta": {
+                                                "durationMs": 55,
+                                                "rowCount": 2,
+                                                "totalCount": 2
+                                            },
+                                            "data": [
+                                                {
+                                                    "Auftrnr": "AW 214805",
+                                                    "ordernumber": "70539",
+                                                    "orderstatus": "in_progress",
+                                                    "provider": "Andere",
+                                                    "trackinginfo": "298292929",
+                                                    "trackingurl": ""
+                                                },
+                                                {
+                                                    "Auftrnr": "AW 214804",
+                                                    "ordernumber": "70537",
+                                                    "orderstatus": "in_progress",
+                                                    "provider": "planzer",
+                                                    "trackinginfo": "913368990400000188001",
+                                                    "trackingurl": "https://tracking.app.planzer.ch/delivery/info?packageNumber=913368990400000188001"
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest400"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized401"
+                    },
+                    "405": {
+                        "$ref": "#/components/responses/MethodNotAllowed405"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError500"
+                    }
+                }
+            }
+        },
+        "/kontor/upsert": {
+            "post": {
+                "tags": [
+                    "upsert"
+                ],
+                "operationId": "kontorUpsertOrders",
+                "summary": "Upload WooCommerce orders to Kontor (WRITE)",
+                "description": "The only write endpoint. Selected by `name` (`orders`). IMPORTANT: the top-level `success` is `true` even when individual orders fail — inspect each result row's `status` (`ok`/`fehler`). Duplicates (same `orderNumber`, `overwrite_all:false`) are rejected, not updated. Confirm you are targeting the intended (test vs. production) environment before use.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpsertRequest"
+                            },
+                            "example": {
+                                "name": "orders",
+                                "meta": {
+                                    "userId": "CG"
+                                },
+                                "params": {
+                                    "shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b",
+                                    "overwrite_all": false,
+                                    "orders": [
+                                        {
+                                            "orderId": "SO-2026-0001",
+                                            "orderPlatformid": "WooTest",
+                                            "orderNumber": "SO-2026-0001",
+                                            "orderDate": "2026-03-26T10:15:00Z",
+                                            "billingAddress": {
+                                                "name": "Max Mustermann",
+                                                "street": "Musterstraße 1",
+                                                "zipcode": "50667",
+                                                "city": "Köln",
+                                                "countryCode": "DE"
+                                            },
+                                            "customerName": "Max Mustermann",
+                                            "customerEmail": "max@example.com",
+                                            "customerGroup": "EDU",
+                                            "language": "de",
+                                            "items": [
+                                                {
+                                                    "itemId": "1",
+                                                    "sku": "ltvbk730",
+                                                    "quantity": 1,
+                                                    "unitPrice": 6.0,
+                                                    "totalPrice": 6.0,
+                                                    "position": 1,
+                                                    "taxRate": 8.1
+                                                }
+                                            ],
+                                            "currency": "CHF",
+                                            "remarks": "Bitte Lieferung nur vormittags"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Batch processed. Check per-order `status`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UpsertResponse"
+                                },
+                                "examples": {
+                                    "Success": {
+                                        "summary": "created (status ok)",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Operation completed successfully",
+                                            "meta": {
+                                                "durationMs": 23,
+                                                "rowCount": 1,
+                                                "totalCount": null
+                                            },
+                                            "data": [
+                                                {
+                                                    "orderId": "SO-2026-0001",
+                                                    "orderNumber": "SO-2026-0001",
+                                                    "auftrnr": "AW 214807",
+                                                    "status": "ok",
+                                                    "message": null
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "Duplicate": {
+                                        "summary": "duplicate orderNumber (status fehler)",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Operation completed successfully",
+                                            "meta": {
+                                                "durationMs": 11,
+                                                "rowCount": 1,
+                                                "totalCount": null
+                                            },
+                                            "data": [
+                                                {
+                                                    "orderId": "SO-2026-0001",
+                                                    "orderNumber": "SO-2026-0001",
+                                                    "auftrnr": null,
+                                                    "status": "fehler",
+                                                    "message": "Auftrag bereits vorhanden (Dublette)."
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    },
+                                    "NoOrders": {
+                                        "summary": "empty orders array (status fehler)",
+                                        "value": {
+                                            "success": true,
+                                            "message": "Operation completed successfully",
+                                            "meta": {
+                                                "durationMs": 4,
+                                                "rowCount": 1,
+                                                "totalCount": null
+                                            },
+                                            "data": [
+                                                {
+                                                    "orderId": null,
+                                                    "orderNumber": null,
+                                                    "auftrnr": null,
+                                                    "status": "fehler",
+                                                    "message": "JSON-Array enthält keine Aufträge."
+                                                }
+                                            ],
+                                            "errorCode": null,
+                                            "details": null
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest400"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized401"
+                    },
+                    "405": {
+                        "$ref": "#/components/responses/MethodNotAllowed405"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError500"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "ApiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "x-api-key",
+                "description": "API key issued by Kontor/3AG. Placeholder: `<YOUR_API_KEY>`."
+            }
+        },
+        "schemas": {
+            "Meta": {
+                "type": "object",
+                "description": "Timing/paging metadata attached to most successful responses.",
+                "properties": {
+                    "durationMs": {
+                        "type": "integer",
+                        "description": "Server-side execution time in milliseconds.",
+                        "example": 55
+                    },
+                    "rowCount": {
+                        "type": "integer",
+                        "description": "Number of rows returned in `data` for this response.",
+                        "example": 2
+                    },
+                    "totalCount": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total rows matching the query ignoring paging. For `products` this reflects the active filter. `null` on write/error responses.",
+                        "example": 4396
+                    }
+                },
+                "required": [
+                    "durationMs",
+                    "rowCount",
+                    "totalCount"
+                ]
+            },
+            "ErrorEnvelope": {
+                "type": "object",
+                "description": "Standard error envelope returned for validation (`ERR-400`) and execution (`ERR-500`) failures on the search/upsert operations.",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            false
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Invalid parameters"
+                    },
+                    "meta": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Meta"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "data": {
+                        "type": "null"
+                    },
+                    "errorCode": {
+                        "type": "string",
+                        "example": "ERR-400",
+                        "description": "One of: `ERR-400` (invalid parameters), `ERR-500` (execution failed). Auth failures use a different envelope (see `AuthErrorEnvelope`)."
+                    },
+                    "details": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": "entity is required",
+                        "description": "Human-readable German/English detail, e.g. `entity is required`, `Unknown entity: X`, `Fehler beim Konvertieren einer Zeichenfolge in \"uniqueidentifier\".`"
+                    }
+                },
+                "required": [
+                    "success",
+                    "message",
+                    "errorCode"
+                ]
+            },
+            "AuthErrorEnvelope": {
+                "type": "object",
+                "description": "Short envelope used ONLY for 401 authentication failures. Note it omits `meta`, `data` and `details`.",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            false
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "German message.",
+                        "example": "Ungültiger API-Key"
+                    },
+                    "errorCode": {
+                        "type": "string",
+                        "enum": [
+                            "ERR-401-MISSING-API-KEY",
+                            "ERR-401-INVALID-API-KEY"
+                        ]
+                    }
+                },
+                "required": [
+                    "success",
+                    "message",
+                    "errorCode"
+                ]
+            },
+            "ProblemDetails": {
+                "type": "object",
+                "description": "ASP.NET Core `application/problem+json` body returned by the framework (NOT the API envelope) when the request body is not valid JSON. HTTP 500.",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "example": "https://tools.ietf.org/html/rfc9110#section-15.6.1"
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "An error occurred while processing your request."
+                    },
+                    "status": {
+                        "type": "integer",
+                        "example": 500
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": "Invalid character after parsing property name. Expected ':' but got: j. Path '', line 1, position 5."
+                    }
+                }
+            },
+            "Paging": {
+                "type": "object",
+                "description": "Paging control. Honoured ONLY by the `products` entity; ignored by `stock`, `manufacturer`, `shops`, `orders`.",
+                "properties": {
+                    "skip": {
+                        "type": "integer",
+                        "default": 0,
+                        "minimum": 0,
+                        "description": "Rows to skip. Negative values are treated as 0. `skip` beyond `totalCount` returns an empty `data` array with `success:true`.",
+                        "example": 0
+                    },
+                    "take": {
+                        "type": "integer",
+                        "default": 2000,
+                        "maximum": 2000,
+                        "description": "Page size. Omitted => 2000. HARD-CAPPED at 2000 (values >2000 and -1 all return 2000). `take:0` is rejected: the response is `success:false`, `data:null`.",
+                        "example": 500
+                    }
+                }
+            },
+            "ProductFilter": {
+                "type": "object",
+                "properties": {
+                    "herstellerids": {
+                        "type": "string",
+                        "description": "Comma-separated manufacturer IDs; multiple IDs are OR-combined (e.g. `\"11,5\"` returns products of manufacturer 11 OR 5). WARNING: values are matched EXACTLY as stored — there is NO whitespace trimming (`\"11, 5\"` matches only `11`) and NO leading-zero normalization (`\"5\"` matches but `\"05\"`/`\"005\"` match nothing). Note manufacturer IDs are inconsistent in the data: some are zero-padded (`075`, `104`) and some are short (`5`, `11`, `18`). Use the exact `Herstellerid` from the manufacturer list.",
+                        "example": "11,5"
+                    },
+                    "shoptype": {
+                        "type": "string",
+                        "enum": [
+                            "B2B",
+                            "B2C",
+                            "EDU"
+                        ],
+                        "default": "B2B",
+                        "description": "Selects the shop-specific text variant (`Shoptitel`/`Kurztext`/`Langtext`). Defaults to `B2B` when omitted. NOT validated: an unknown value is echoed back in the `Shoptype` field and rows are still returned. At time of testing all three variants returned identical text (per-shop content not yet maintained in Kontor).",
+                        "example": "B2C"
+                    }
+                }
+            },
+            "ProductsSearchRequest": {
+                "type": "object",
+                "required": [
+                    "entity"
+                ],
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "products"
+                        ],
+                        "description": "Case-insensitive."
+                    },
+                    "paging": {
+                        "$ref": "#/components/schemas/Paging"
+                    },
+                    "filter": {
+                        "$ref": "#/components/schemas/ProductFilter"
+                    }
+                }
+            },
+            "StockSearchRequest": {
+                "type": "object",
+                "required": [
+                    "entity"
+                ],
+                "description": "Returns the full stock list. `paging` and `filter` are accepted but IGNORED — the entire list is always returned.",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "stock"
+                        ]
+                    }
+                }
+            },
+            "ManufacturerSearchRequest": {
+                "type": "object",
+                "required": [
+                    "entity"
+                ],
+                "description": "Returns the full manufacturer list. `paging`/`filter` are ignored.",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "manufacturer"
+                        ]
+                    }
+                }
+            },
+            "ShopsSearchRequest": {
+                "type": "object",
+                "required": [
+                    "entity"
+                ],
+                "description": "Returns the full shop list. `paging`/`filter` are ignored.",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "shops"
+                        ]
+                    }
+                }
+            },
+            "OrderSearchFilter": {
+                "type": "object",
+                "required": [
+                    "shopid"
+                ],
+                "properties": {
+                    "shopid": {
+                        "type": "string",
+                        "description": "Kontor shop UUID (case-insensitive). Only this filter key is honoured — any other keys (e.g. `ordernumber`, `orderstatus`) are silently IGNORED. A missing/empty/unknown-but-well-formed UUID returns `success:true` with an empty `data` array; a MALFORMED (non-UUID) value returns HTTP 500 (`ERR-500`, uniqueidentifier conversion error).",
+                        "example": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+                    }
+                }
+            },
+            "OrdersSearchRequest": {
+                "type": "object",
+                "required": [
+                    "entity",
+                    "filter"
+                ],
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "orders"
+                        ]
+                    },
+                    "filter": {
+                        "$ref": "#/components/schemas/OrderSearchFilter"
+                    }
+                }
+            },
+            "Product": {
+                "type": "object",
+                "description": "Product master-data row. Note: the `Categories` field is present in live responses but was absent from the original draft doc.",
+                "properties": {
+                    "Artnr": {
+                        "type": "string",
+                        "description": "Article number / SKU.",
+                        "example": "ltvbk730"
+                    },
+                    "Artean": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "EAN / GTIN. May be null.",
+                        "example": "5060023417303"
+                    },
+                    "Herstellerid": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Manufacturer ID. May be null. Not zero-normalized (`11`, `075`, ...).",
+                        "example": "11"
+                    },
+                    "Hersteller": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Manufacturer name. May be null.",
+                        "example": "Le Toy Van"
+                    },
+                    "Mpn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Manufacturer part number. May be null.",
+                        "example": "BK730"
+                    },
+                    "Gewnetto": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "Net weight.",
+                        "example": 0.0
+                    },
+                    "Artzentralnr": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Central article number.",
+                        "example": "ltvbk730"
+                    },
+                    "Bez1": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Base product title/name.",
+                        "example": "Königliche Garde"
+                    },
+                    "Shoptype": {
+                        "type": "string",
+                        "description": "Text variant echoed for the requested `shoptype` (not validated).",
+                        "example": "B2B"
+                    },
+                    "Shoptitel": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Shop-specific title.",
+                        "example": "Königliche Garde"
+                    },
+                    "Kurztext": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Shop-specific short description. May contain HTML (`<P>`, `<BR>`, `\\r\\n`). May be null.",
+                        "example": "Budkins Holzspielpuppe"
+                    },
+                    "Langtext": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Shop-specific long description. May contain HTML. May be null."
+                    },
+                    "Ek": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "Purchase / cost price.",
+                        "example": 6.0
+                    },
+                    "UVP": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "Recommended retail price / MSRP.",
+                        "example": 6.0
+                    },
+                    "Lagerbestand": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "Stock quantity. Returned as an INTEGER on products (contrast: decimal on the `stock` entity).",
+                        "example": 9
+                    },
+                    "MainImageURL": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Main image FILENAME only (prefix with the configured image base, e.g. `https://daten.3ag.ch/images/`). May be null.",
+                        "example": "ltv_bk730cutout.jpg"
+                    },
+                    "ImageURL_1": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename.",
+                        "example": "ltvbk730.jpg"
+                    },
+                    "ImageURL_2": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_3": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_4": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_5": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_6": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_7": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_8": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "ImageURL_9": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Additional image filename."
+                    },
+                    "Categories": {
+                        "type": "string",
+                        "description": "Comma-separated category IDs (mixed lowercase-hash and uppercase-GUID forms). Empty string when uncategorized.",
+                        "example": "582e346da96703f3d0d68ad505a62ba0,4ED38977-FBDB-4ECF-8DA2-CFF10C7E6ED9"
+                    }
+                }
+            },
+            "StockRow": {
+                "type": "object",
+                "properties": {
+                    "Artnr": {
+                        "type": "string",
+                        "description": "Article number / SKU.",
+                        "example": "007-001-001"
+                    },
+                    "Lagerbestand": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "Stock quantity. DECIMAL on this entity (e.g. `111.000`).",
+                        "example": 111.0
+                    }
+                },
+                "required": [
+                    "Artnr",
+                    "Lagerbestand"
+                ]
+            },
+            "Manufacturer": {
+                "type": "object",
+                "properties": {
+                    "Herstellerid": {
+                        "type": "string",
+                        "description": "Manufacturer ID (string; leading zeros preserved). Use in `filter.herstellerids`.",
+                        "example": "075"
+                    },
+                    "Hersteller": {
+                        "type": "string",
+                        "description": "Manufacturer name.",
+                        "example": "Die Spiegelburg"
+                    }
+                },
+                "required": [
+                    "Herstellerid",
+                    "Hersteller"
+                ]
+            },
+            "Shop": {
+                "type": "object",
+                "properties": {
+                    "Shopid": {
+                        "type": "string",
+                        "description": "Kontor shop UUID. Use as `shopid` for order search/upsert.",
+                        "example": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+                    },
+                    "Name": {
+                        "type": "string",
+                        "description": "Shop name.",
+                        "example": "Edu-Shop"
+                    }
+                },
+                "required": [
+                    "Shopid",
+                    "Name"
+                ]
+            },
+            "OrderSearchRow": {
+                "type": "object",
+                "description": "Order status/tracking row returned by `entity:orders`.",
+                "properties": {
+                    "Auftrnr": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Kontor internal order number.",
+                        "example": "AW 214805"
+                    },
+                    "ordernumber": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "External/shop order number.",
+                        "example": "70539"
+                    },
+                    "orderstatus": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Current status. Observed values (not exhaustive): `in_progress`, `completed`, `partially_completed`.",
+                        "example": "in_progress"
+                    },
+                    "provider": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Shipping provider. Observed values: `planzer`, `Andere` (\"Other\"). May be null.",
+                        "example": "planzer"
+                    },
+                    "trackinginfo": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Tracking number/info. May be null.",
+                        "example": "913368990400000188001"
+                    },
+                    "trackingurl": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Tracking URL. May be an empty string or a provider URL.",
+                        "example": "https://tracking.app.planzer.ch/delivery/info?packageNumber=913368990400000188001"
+                    }
+                }
+            },
+            "UpsertMeta": {
+                "type": "object",
+                "required": [
+                    "userId"
+                ],
+                "properties": {
+                    "userId": {
+                        "type": "string",
+                        "description": "Arbitrary user identifier. REQUIRED (missing => `ERR-400` `meta.userId is required`).",
+                        "example": "CG"
+                    }
+                }
+            },
+            "Address": {
+                "type": "object",
+                "description": "Postal address. All fields optional; supply what invoicing/delivery needs.",
+                "properties": {
+                    "firstName": {
+                        "type": "string"
+                    },
+                    "lastName": {
+                        "type": "string"
+                    },
+                    "company": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "attn": {
+                        "type": "string",
+                        "description": "Attention line."
+                    },
+                    "additionalAddress": {
+                        "type": "string"
+                    },
+                    "department": {
+                        "type": "string"
+                    },
+                    "street": {
+                        "type": "string"
+                    },
+                    "street2": {
+                        "type": "string"
+                    },
+                    "zipcode": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "countryName": {
+                        "type": "string"
+                    },
+                    "countryCode": {
+                        "type": "string",
+                        "description": "ISO country code.",
+                        "example": "CH"
+                    },
+                    "phone": {
+                        "type": "string"
+                    },
+                    "vatId": {
+                        "type": "string"
+                    },
+                    "externalId": {
+                        "type": "string"
+                    }
+                }
+            },
+            "OrderItem": {
+                "type": "object",
+                "required": [
+                    "sku",
+                    "quantity"
+                ],
+                "properties": {
+                    "itemId": {
+                        "type": "string",
+                        "description": "Shop/order line item ID."
+                    },
+                    "productId": {
+                        "type": "string",
+                        "description": "Shop product ID."
+                    },
+                    "sku": {
+                        "type": "string",
+                        "description": "Product SKU / article number.",
+                        "example": "ltvbk730"
+                    },
+                    "quantity": {
+                        "type": "number",
+                        "example": 1
+                    },
+                    "unitPrice": {
+                        "type": "number",
+                        "example": 6.0
+                    },
+                    "regularPrice": {
+                        "type": "number"
+                    },
+                    "priceFaktor": {
+                        "type": "number",
+                        "description": "Price factor. Keep API spelling exactly (`priceFaktor`).",
+                        "example": 1
+                    },
+                    "discount": {
+                        "type": "number"
+                    },
+                    "totalPrice": {
+                        "type": "number",
+                        "example": 6.0
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "position": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "taxRate": {
+                        "type": "number",
+                        "description": "VAT/tax rate percentage.",
+                        "example": 8.1
+                    }
+                }
+            },
+            "Order": {
+                "type": "object",
+                "required": [
+                    "orderNumber",
+                    "items"
+                ],
+                "description": "A single order. Most fields are optional (per Kontor: the practical requirements are customer/invoicing data, a delivery address if it differs from billing, and line items with sku/quantity/price/tax). `orderNumber` is the deduplication key.",
+                "properties": {
+                    "orderId": {
+                        "type": "string",
+                        "description": "WooCommerce internal order ID or display order number (display number recommended)."
+                    },
+                    "orderPlatformid": {
+                        "type": "string",
+                        "description": "Platform identifier string (identifies the platform, e.g. `Toysonline`).",
+                        "example": "WooTest"
+                    },
+                    "orderAccountid": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Subaccount ID relative to the platform. Not relevant here; may be null."
+                    },
+                    "orderNumber": {
+                        "type": "string",
+                        "description": "Unique shop order number. DEDUPLICATION KEY: Kontor checks this to decide create-vs-skip.",
+                        "example": "SO-2026-0001"
+                    },
+                    "orderDate": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp.",
+                        "example": "2026-03-26T10:15:00Z"
+                    },
+                    "salesChannelName": {
+                        "type": "string"
+                    },
+                    "billingAddress": {
+                        "$ref": "#/components/schemas/Address"
+                    },
+                    "deliveryAddress": {
+                        "$ref": "#/components/schemas/Address"
+                    },
+                    "shippingTotal": {
+                        "type": "number"
+                    },
+                    "customerName": {
+                        "type": "string"
+                    },
+                    "customerNumber": {
+                        "type": "string"
+                    },
+                    "customerEmail": {
+                        "type": "string"
+                    },
+                    "customerPhone": {
+                        "type": "string"
+                    },
+                    "customerVatId": {
+                        "type": "string"
+                    },
+                    "customerGroup": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string",
+                        "example": "de"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderItem"
+                        },
+                        "minItems": 1
+                    },
+                    "paymentMethod": {
+                        "type": "string"
+                    },
+                    "paymentMethodName": {
+                        "type": "string"
+                    },
+                    "paymentTransactionId": {
+                        "type": "string"
+                    },
+                    "paymentState": {
+                        "type": "string"
+                    },
+                    "shippingMethod": {
+                        "type": "string"
+                    },
+                    "taxStatus": {
+                        "type": "string"
+                    },
+                    "remarks": {
+                        "type": "string"
+                    },
+                    "currency": {
+                        "type": "string",
+                        "example": "EUR"
+                    }
+                }
+            },
+            "UpsertOrdersParams": {
+                "type": "object",
+                "required": [
+                    "shopid",
+                    "orders"
+                ],
+                "properties": {
+                    "shopid": {
+                        "type": "string",
+                        "description": "Target Kontor shop UUID (case-insensitive). Malformed value => HTTP 500.",
+                        "example": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+                    },
+                    "overwrite_all": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "When false, existing orders (matched by `orderNumber`) are NOT overwritten — a duplicate is reported per-order as `status:\"fehler\"` / `\"Auftrag bereits vorhanden (Dublette).\"`."
+                    },
+                    "orders": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Order"
+                        },
+                        "description": "Orders to import. An empty array or a missing `orders` key returns `success:true` with a single `fehler` result row (`JSON-Array enthält keine Aufträge.` / `@OrdersJson ist leer.`)."
+                    }
+                }
+            },
+            "UpsertRequest": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "meta",
+                    "params"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": [
+                            "orders"
+                        ],
+                        "description": "Upsert operation name. REQUIRED (missing => `ERR-400`). An unknown name => HTTP 500 (`Upsert-Parameter Name ungültig`)."
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/UpsertMeta"
+                    },
+                    "params": {
+                        "$ref": "#/components/schemas/UpsertOrdersParams"
+                    }
+                }
+            },
+            "UpsertResultRow": {
+                "type": "object",
+                "description": "Per-order result. NOTE: business failures do NOT change the top-level `success` (which stays true); inspect `status`.",
+                "properties": {
+                    "orderId": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Echoed submitted order ID."
+                    },
+                    "orderNumber": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Echoed submitted order number."
+                    },
+                    "auftrnr": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Kontor internal order number on success; null on failure.",
+                        "example": "AW 214625"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "fehler"
+                        ],
+                        "description": "`ok` = created; `fehler` = rejected (see `message`)."
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Null on success. On failure, e.g. `Auftrag bereits vorhanden (Dublette).`, `JSON-Array enthält keine Aufträge.`, `@OrdersJson ist leer.`"
+                    }
+                },
+                "required": [
+                    "status"
+                ]
+            },
+            "SearchResponse": {
+                "type": "object",
+                "description": "Successful search envelope. `data` item shape depends on the requested `entity` (see the named examples).",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            true
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Search completed successfully"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/Product"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/StockRow"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/Manufacturer"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/Shop"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/OrderSearchRow"
+                                }
+                            ]
+                        }
+                    },
+                    "errorCode": {
+                        "type": "null"
+                    },
+                    "details": {
+                        "type": "null"
+                    }
+                },
+                "required": [
+                    "success",
+                    "message",
+                    "meta",
+                    "data"
+                ]
+            },
+            "UpsertResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            true
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Operation completed successfully"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/Meta"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UpsertResultRow"
+                        }
+                    },
+                    "errorCode": {
+                        "type": "null"
+                    },
+                    "details": {
+                        "type": "null"
+                    }
+                },
+                "required": [
+                    "success",
+                    "message",
+                    "meta",
+                    "data"
+                ]
+            }
+        },
+        "responses": {
+            "BadRequest400": {
+                "description": "Validation failure (`ERR-400`) — e.g. missing `entity`/`name`/`meta.userId`, or empty request body.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorEnvelope"
+                        },
+                        "examples": {
+                            "MissingEntity": {
+                                "summary": "entity required",
+                                "value": {
+                                    "success": false,
+                                    "message": "Invalid parameters",
+                                    "meta": null,
+                                    "data": null,
+                                    "errorCode": "ERR-400",
+                                    "details": "entity is required"
+                                }
+                            },
+                            "EmptyBody": {
+                                "summary": "empty body",
+                                "value": {
+                                    "success": false,
+                                    "message": "Invalid request body",
+                                    "meta": null,
+                                    "data": null,
+                                    "errorCode": "ERR-400",
+                                    "details": "Request body is required"
+                                }
+                            },
+                            "MissingName": {
+                                "summary": "upsert name required",
+                                "value": {
+                                    "success": false,
+                                    "message": "Invalid parameters",
+                                    "meta": null,
+                                    "data": null,
+                                    "errorCode": "ERR-400",
+                                    "details": "name is required"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Unauthorized401": {
+                "description": "Missing or invalid `x-api-key`. Uses the short auth envelope.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/AuthErrorEnvelope"
+                        },
+                        "examples": {
+                            "MissingApiKey": {
+                                "summary": "401 missing key",
+                                "value": {
+                                    "success": false,
+                                    "message": "API-Key fehlt",
+                                    "errorCode": "ERR-401-MISSING-API-KEY"
+                                }
+                            },
+                            "InvalidApiKey": {
+                                "summary": "401 invalid key",
+                                "value": {
+                                    "success": false,
+                                    "message": "Ungültiger API-Key",
+                                    "errorCode": "ERR-401-INVALID-API-KEY"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "ServerError500": {
+                "description": "Execution failure (`ERR-500`) — e.g. unknown entity/name or malformed UUID. Malformed JSON bodies instead return an ASP.NET `problem+json` (see schema `ProblemDetails`).",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            ]
+                        },
+                        "examples": {
+                            "UnknownEntity": {
+                                "summary": "unknown entity",
+                                "value": {
+                                    "success": false,
+                                    "message": "Kontor search execution failed",
+                                    "meta": {
+                                        "durationMs": 1,
+                                        "rowCount": 0,
+                                        "totalCount": null
+                                    },
+                                    "data": null,
+                                    "errorCode": "ERR-500",
+                                    "details": "Unknown entity: foobar"
+                                }
+                            },
+                            "BadShopUuid": {
+                                "summary": "malformed shopid",
+                                "value": {
+                                    "success": false,
+                                    "message": "Kontor search execution failed",
+                                    "meta": {
+                                        "durationMs": 3,
+                                        "rowCount": 0,
+                                        "totalCount": null
+                                    },
+                                    "data": null,
+                                    "errorCode": "ERR-500",
+                                    "details": "Fehler beim Konvertieren einer Zeichenfolge in \"uniqueidentifier\"."
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "MethodNotAllowed405": {
+                "description": "Returned (empty body) for `GET`/`HEAD` or a request with no body. Use `POST` with a JSON body."
+            }
+        }
+    }
+}
