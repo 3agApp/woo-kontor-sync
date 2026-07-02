@@ -18,7 +18,6 @@ The documentation is written in English, but API paths, request field names, res
 | Category upsert | Implemented | `upsert` endpoint with `name: "categories"` |
 | Order upload | Implemented for test database | `upsert` endpoint with `name: "orders"` |
 | Order search/status lookup | Implemented | `search` endpoint with `entity: "orders"` and `filter.shopid`; returns status/tracking fields |
-| Legacy order status endpoint | Proposed/planned | `/kontor/orderstatus` shape was shared earlier, but implementation was not confirmed in the emails |
 
 ## Base URL And Authentication
 
@@ -542,7 +541,7 @@ Notes:
 
 - Returned fields may change depending on the selected `entity`.
 - If no matching records are found, `data` will be an empty array and `meta.rowCount` will be `0`.
-- For current order status/tracking sync, this implemented `search` endpoint with `entity: "orders"` should be preferred over the older proposed `/kontor/orderstatus` endpoint unless Codegarden/3AG confirms otherwise.
+- For current order status/tracking sync, use this implemented `search` endpoint with `entity: "orders"`.
 
 ## Endpoint: Upsert
 
@@ -802,60 +801,6 @@ Response field reference:
 | `status` | Import status, for example `ok`. |
 | `message` | Optional message/error detail for the order. |
 
-## Proposed Endpoint: Order Status / Tracking
-
-This endpoint was proposed by Codegarden on 2026-03-26. The email did not confirm final implementation. A separate implemented order lookup is now documented above under `search` with `entity: "orders"`, so verify whether this older endpoint is still needed before using it.
-
-```http
-POST /kontor/orderstatus
-```
-
-Example request:
-
-```json
-{
-  "updateTimeFrom": "2026-03-25T00:00:00Z",
-  "updateTimeTo": "2026-03-26T23:59:59Z",
-  "shopOrderId": "SHOP-100045"
-}
-```
-
-Filter rule:
-
-- At least one filter must be specified.
-- Proposed filters: `updateTimeFrom`, `updateTimeTo`, `shopOrderId`.
-
-Example proposed response:
-
-```json
-{
-  "orders": [
-    {
-      "shopOrderId": "SHOP-100045",
-      "internalOrderId": "ERP-500981",
-      "orderStatus": "partially_shipped",
-      "tracking": [
-        {
-          "provider": "DHL",
-          "trackingNumber": "00340434123456789012",
-          "shippingDate": "2026-03-26T08:30:00Z"
-        }
-      ],
-      "items": [
-        {
-          "sku": "ART-1000",
-          "status": "shipped"
-        },
-        {
-          "sku": "ART-2000",
-          "status": "open"
-        }
-      ]
-    }
-  ]
-}
-```
-
 ## Integration Workflow
 
 ### Product Sync From Kontor To WooCommerce
@@ -892,7 +837,7 @@ For B2B Retail and Education shops:
 
 1. Send complete orders and customer data to Kontor with `name: "orders"`.
 2. Kontor handles invoices, delivery notes, stock deductions, and fulfillment workflow.
-3. WooCommerce should retrieve order status/tracking with the implemented search endpoint using `entity: "orders"` and `filter.shopid`. If the older `/kontor/orderstatus` endpoint is later confirmed, compare both schemas before switching.
+3. WooCommerce should retrieve order status/tracking with the implemented search endpoint using `entity: "orders"` and `filter.shopid`.
 
 For B2C end-customer shops:
 
@@ -907,6 +852,5 @@ For B2C end-customer shops:
 | API key | Should the existing key be rotated because it was shared in email and pasted into working docs/context? |
 | Order endpoint environment | Is order upsert still test-database only, or has a production endpoint/environment been enabled? |
 | Order duplicate behavior | If an existing `orderNumber` is sent again, is it ignored, updated, or returned as already imported? |
-| Order status endpoint | Should production order status/tracking sync use `search` with `entity: "orders"`, or will `/kontor/orderstatus` also be implemented with a different schema? |
 | Stock reservation | For B2C shops, what exact API behavior reserves stock without full invoicing/fulfillment in Kontor? |
 | Availability/backorder | What exact fields will represent "on order", extended delivery time, reorder, or backorder state? |
