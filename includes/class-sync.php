@@ -2123,12 +2123,6 @@ class WKS_Sync {
                 continue;
             }
 
-            // Scope: only touch orders that were previously uploaded to Kontor.
-            if (empty($order->get_meta('_wks_kontor_auftrnr')) && empty($order->get_meta('_wks_order_synced'))) {
-                $stats['skipped']++;
-                continue;
-            }
-
             try {
                 // --- Order status ---
                 $raw_status = isset($row['orderstatus']) ? trim((string) $row['orderstatus']) : '';
