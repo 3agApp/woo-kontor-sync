@@ -542,6 +542,7 @@ Notes:
 - Returned fields may change depending on the selected `entity`.
 - If no matching records are found, `data` will be an empty array and `meta.rowCount` will be `0`.
 - For current order status/tracking sync, use this implemented `search` endpoint with `entity: "orders"`.
+- The plugin consumes this endpoint via the scheduled **Order Status Sync** (Settings → Orders), which maps the returned `orderstatus` to a WooCommerce status and stores `provider` / `trackinginfo` / `trackingurl` on the order.
 
 ## Endpoint: Upsert
 

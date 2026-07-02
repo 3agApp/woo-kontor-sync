@@ -95,6 +95,22 @@ if (!defined('ABSPATH')) {
                 'run_btn_id'  => 'wssc-run-order-sync',
                 'run_disabled' => !$license_valid || empty($scheduler_status['order_sync_enabled']),
             ],
+            [
+                'key'         => 'status',
+                'tab'         => 'orders',
+                'icon'        => 'dashicons-update',
+                'title'       => __('Order Status', 'woo-kontor-sync'),
+                'description' => __('Pull order status & tracking from Kontor into WooCommerce.', 'woo-kontor-sync'),
+                'enabled'     => !empty($scheduler_status['status_sync_enabled']),
+                'interval'    => null,
+                'next_run'    => !empty($scheduler_status['status_sync_next_run'])
+                    ? human_time_diff(time(), $scheduler_status['status_sync_next_run'])
+                    : null,
+                'next_overdue' => !empty($scheduler_status['status_sync_next_run']) && $scheduler_status['status_sync_next_run'] < time(),
+                'last_run'    => !empty($scheduler_status['status_sync_last_run_human']) ? $scheduler_status['status_sync_last_run_human'] : null,
+                'run_btn_id'  => 'wssc-run-status-sync',
+                'run_disabled' => !$license_valid || empty($scheduler_status['status_sync_enabled']),
+            ],
         ];
         ?>
 

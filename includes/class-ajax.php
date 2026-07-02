@@ -33,6 +33,7 @@ class WKS_Ajax {
         add_action('wp_ajax_wks_upsert_categories', [$this, 'upsert_categories']);
         add_action('wp_ajax_wks_run_order_sync', [$this, 'run_order_sync']);
         add_action('wp_ajax_wks_run_stock_sync', [$this, 'run_stock_sync']);
+        add_action('wp_ajax_wks_run_status_sync', [$this, 'run_status_sync']);
     }
 
     /**
@@ -317,6 +318,32 @@ class WKS_Ajax {
         update_option('wks_order_sales_channel', $order_sales_channel);
         update_option('wks_order_sync_interval', $order_sync_interval);
 
+        // Order status sync settings (Kontor -> WooCommerce)
+        $status_sync_enabled  = isset($_POST['status_sync_enabled']) && filter_var(wp_unslash($_POST['status_sync_enabled']), FILTER_VALIDATE_BOOLEAN);
+        $status_sync_interval = isset($_POST['status_sync_interval']) ? sanitize_text_field($_POST['status_sync_interval']) : 'hourly';
+
+        $status_map = [];
+        if (isset($_POST['status_map']) && is_array($_POST['status_map'])) {
+            foreach (wp_unslash($_POST['status_map']) as $wc_slug => $raw) {
+                $wc_slug = sanitize_key($wc_slug);
+                $parts   = preg_split('/[,\n]+/', (string) $raw);
+                $values  = [];
+                foreach ((array) $parts as $part) {
+                    $part = strtolower(trim(sanitize_text_field($part)));
+                    if ($part !== '') {
+                        $values[] = $part;
+                    }
+                }
+                if (!empty($values)) {
+                    $status_map[$wc_slug] = array_values(array_unique($values));
+                }
+            }
+        }
+
+        update_option('wks_status_sync_enabled', $status_sync_enabled);
+        update_option('wks_status_sync_interval', $status_sync_interval);
+        update_option('wks_status_map', $status_map);
+
         // Rebuild every sync's cron from current option state.
         WKS()->scheduler->reschedule_all();
 
@@ -592,6 +619,64 @@ class WKS_Ajax {
             }
         } catch (Exception $e) {
             delete_transient('wks_stock_sync_running');
+            wp_send_json_error([
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Run manual order-status sync (Kontor -> WooCommerce)
+     */
+    public function run_status_sync() {
+        $this->verify_nonce();
+
+        if (!WKS()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        if (!get_option('wks_status_sync_enabled', false)) {
+            wp_send_json_error([
+                'message' => __('Order status sync is not enabled. Please enable it in settings first.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        if (get_transient('wks_status_sync_running')) {
+            wp_send_json_error([
+                'message' => __('An order status sync is already in progress.', 'woo-kontor-sync'),
+            ]);
+        }
+
+        // Rate limiting (30s between manual runs)
+        $last_manual = get_transient('wks_last_manual_status_sync');
+        if ($last_manual !== false) {
+            $wait_time = 30 - (time() - $last_manual);
+            if ($wait_time > 0) {
+                wp_send_json_error([
+                    'message' => sprintf(
+                        __('Please wait %d seconds before starting another order status sync.', 'woo-kontor-sync'),
+                        $wait_time
+                    ),
+                ]);
+            }
+        }
+        set_transient('wks_last_manual_status_sync', time(), 60);
+
+        set_transient('wks_status_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $result = WKS()->sync->run_manual_status_sync();
+            delete_transient('wks_status_sync_running');
+
+            if ($result['success']) {
+                wp_send_json_success($result);
+            } else {
+                wp_send_json_error($result);
+            }
+        } catch (Exception $e) {
+            delete_transient('wks_status_sync_running');
             wp_send_json_error([
                 'message' => $e->getMessage(),
             ]);

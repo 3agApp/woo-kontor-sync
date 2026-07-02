@@ -35,6 +35,7 @@ if (!defined('ABSPATH')) {
                         <option value="sync" <?php selected($type_filter, 'sync'); ?>><?php esc_html_e('Product Sync', 'woo-kontor-sync'); ?></option>
                         <option value="stock_sync" <?php selected($type_filter, 'stock_sync'); ?>><?php esc_html_e('Stock Sync', 'woo-kontor-sync'); ?></option>
                         <option value="order_sync" <?php selected($type_filter, 'order_sync'); ?>><?php esc_html_e('Order Sync', 'woo-kontor-sync'); ?></option>
+                        <option value="status_sync" <?php selected($type_filter, 'status_sync'); ?>><?php esc_html_e('Order Status Sync', 'woo-kontor-sync'); ?></option>
                         <option value="watchdog" <?php selected($type_filter, 'watchdog'); ?>><?php esc_html_e('Watchdog', 'woo-kontor-sync'); ?></option>
                         <option value="license" <?php selected($type_filter, 'license'); ?>><?php esc_html_e('License', 'woo-kontor-sync'); ?></option>
                     </select>
@@ -112,6 +113,7 @@ if (!defined('ABSPATH')) {
                                         'sync'       => __('Product Sync', 'woo-kontor-sync'),
                                         'stock_sync' => __('Stock Sync', 'woo-kontor-sync'),
                                         'order_sync' => __('Order Sync', 'woo-kontor-sync'),
+                                        'status_sync' => __('Order Status Sync', 'woo-kontor-sync'),
                                         'watchdog'   => __('Watchdog', 'woo-kontor-sync'),
                                         'license'    => __('License', 'woo-kontor-sync'),
                                     ];

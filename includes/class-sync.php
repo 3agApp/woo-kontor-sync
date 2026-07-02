@@ -63,6 +63,7 @@ class WKS_Sync {
         add_action('wks_sync_event', [$this, 'run_scheduled_sync']);
         add_action('wks_order_sync_event', [$this, 'run_scheduled_order_sync']);
         add_action('wks_stock_sync_event', [$this, 'run_scheduled_stock_sync']);
+        add_action('wks_status_sync_event', [$this, 'run_scheduled_status_sync']);
         add_action('woocommerce_order_status_changed', [$this, 'on_order_status_changed'], 10, 4);
     }
 
@@ -1995,6 +1996,278 @@ class WKS_Sync {
             'message' => $success
                 ? sprintf(__('Stock sync completed in %s seconds', 'woo-kontor-sync'), $duration)
                 : $error_message,
+            'stats'   => $stats,
+        ]);
+    }
+
+    /**
+     * Run scheduled order-status sync (with lock)
+     */
+    public function run_scheduled_status_sync() {
+        if (get_transient('wks_status_sync_running')) {
+            return;
+        }
+
+        set_transient('wks_status_sync_running', true, 30 * MINUTE_IN_SECONDS);
+
+        try {
+            $this->run_status_sync('scheduled');
+        } finally {
+            delete_transient('wks_status_sync_running');
+        }
+    }
+
+    /**
+     * Run manual order-status sync
+     */
+    public function run_manual_status_sync() {
+        return $this->run_status_sync('manual');
+    }
+
+    /**
+     * Pull order status + tracking from Kontor and write it back to WooCommerce.
+     *
+     * Reverse of the order upload: uses the search endpoint with entity "orders"
+     * to fetch current status/tracking for the configured shop, then updates the
+     * matching WooCommerce orders (only those previously uploaded to Kontor).
+     */
+    public function run_status_sync($trigger = 'manual') {
+        if (!WKS()->license->is_valid()) {
+            $this->log_status_sync($trigger, false, __('Invalid or expired license. Order status sync aborted.', 'woo-kontor-sync'), 0, [], []);
+            return [
+                'success' => false,
+                'message' => __('Invalid or expired license.', 'woo-kontor-sync'),
+            ];
+        }
+
+        $api_host = rtrim(get_option('wks_api_host', ''), '/');
+        $api_key  = get_option('wks_api_key', '');
+        $shop_id  = get_option('wks_shop_id', '');
+
+        if (empty($api_host) || empty($api_key)) {
+            $this->log_status_sync($trigger, false, __('API Host or API Key is not configured.', 'woo-kontor-sync'), 0, [], []);
+            return [
+                'success' => false,
+                'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        if (empty($shop_id)) {
+            $this->log_status_sync($trigger, false, __('Shop ID is not configured. Please select a shop in settings.', 'woo-kontor-sync'), 0, [], []);
+            return [
+                'success' => false,
+                'message' => __('Shop ID is not configured.', 'woo-kontor-sync'),
+            ];
+        }
+
+        set_time_limit(0);
+        wp_raise_memory_limit('admin');
+
+        $start = microtime(true);
+
+        $result = $this->api_search($api_host, $api_key, [
+            'entity' => 'orders',
+            'filter' => ['shopid' => $shop_id],
+        ]);
+
+        if (!$result['success']) {
+            $this->log_status_sync($trigger, false, $result['message'], 0, [], []);
+            return $result;
+        }
+
+        $rows = isset($result['data']) ? $result['data'] : [];
+
+        // Build a reverse lookup: normalized Kontor status value => WooCommerce status slug.
+        $valid_statuses = array_map(function ($k) {
+            return str_replace('wc-', '', $k);
+        }, array_keys(wc_get_order_statuses()));
+
+        $reverse_map = [];
+        foreach ($this->get_status_map() as $wc_slug => $kontor_values) {
+            if (!in_array($wc_slug, $valid_statuses, true)) {
+                continue;
+            }
+            foreach ($kontor_values as $value) {
+                $reverse_map[$value] = $wc_slug;
+            }
+        }
+
+        $stats = [
+            'total'     => count($rows),
+            'updated'   => 0,
+            'unchanged' => 0,
+            'unmapped'  => 0,
+            'skipped'   => 0,
+            'errors'    => 0,
+        ];
+
+        $unmapped_values = [];
+
+        foreach ($rows as $row) {
+            $order_number = isset($row['ordernumber']) ? trim((string) $row['ordernumber']) : '';
+            if ($order_number === '' || !ctype_digit($order_number)) {
+                $stats['skipped']++;
+                continue;
+            }
+
+            $order = wc_get_order((int) $order_number);
+            if (!$order instanceof WC_Order) {
+                $stats['skipped']++;
+                continue;
+            }
+
+            // Scope: only touch orders that were previously uploaded to Kontor.
+            if (empty($order->get_meta('_wks_kontor_auftrnr')) && empty($order->get_meta('_wks_order_synced'))) {
+                $stats['skipped']++;
+                continue;
+            }
+
+            try {
+                // --- Order status ---
+                $raw_status = isset($row['orderstatus']) ? trim((string) $row['orderstatus']) : '';
+                if ($raw_status !== '') {
+                    $order->update_meta_data('_wks_kontor_orderstatus', sanitize_text_field($raw_status));
+
+                    $key = strtolower($raw_status);
+                    if (isset($reverse_map[$key])) {
+                        $target = $reverse_map[$key];
+                        if ($order->get_status() !== $target) {
+                            $order->set_status($target, __('Order status synced from Kontor.', 'woo-kontor-sync'));
+                            $stats['updated']++;
+                        } else {
+                            $stats['unchanged']++;
+                        }
+                    } else {
+                        $stats['unmapped']++;
+                        $unmapped_values[$key] = true;
+                    }
+                }
+
+                // --- Tracking / shipment info ---
+                $provider     = isset($row['provider']) ? trim((string) $row['provider']) : '';
+                $tracking     = isset($row['trackinginfo']) ? trim((string) $row['trackinginfo']) : '';
+                $tracking_url = isset($row['trackingurl']) ? trim((string) $row['trackingurl']) : '';
+                $old_tracking = (string) $order->get_meta('_wks_tracking_number');
+
+                $order->update_meta_data('_wks_kontor_provider', sanitize_text_field($provider));
+                $order->update_meta_data('_wks_tracking_number', sanitize_text_field($tracking));
+                $order->update_meta_data('_wks_tracking_url', esc_url_raw($tracking_url));
+                $order->update_meta_data('_wks_status_synced', time());
+
+                // Add an order note the first time (or whenever) a new tracking number appears.
+                if ($tracking !== '' && $tracking !== $old_tracking) {
+                    $note = sprintf(
+                        /* translators: 1: shipping provider, 2: tracking number, 3: tracking URL */
+                        __('Kontor shipment update — Provider: %1$s, Tracking: %2$s %3$s', 'woo-kontor-sync'),
+                        $provider !== '' ? $provider : __('n/a', 'woo-kontor-sync'),
+                        $tracking,
+                        $tracking_url
+                    );
+                    $order->add_order_note(trim($note));
+                }
+
+                $order->save();
+            } catch (Exception $e) {
+                $stats['errors']++;
+            }
+        }
+
+        $duration = round(microtime(true) - $start, 2);
+        $unmapped = array_keys($unmapped_values);
+        $this->log_status_sync($trigger, true, null, $duration, $stats, $unmapped);
+
+        return [
+            'success' => true,
+            'message' => sprintf(
+                __('Order status sync completed. Updated: %1$d, Unchanged: %2$d, Unmapped: %3$d, Skipped: %4$d, Errors: %5$d', 'woo-kontor-sync'),
+                $stats['updated'],
+                $stats['unchanged'],
+                $stats['unmapped'],
+                $stats['skipped'],
+                $stats['errors']
+            ),
+            'stats'   => $stats,
+        ];
+    }
+
+    /**
+     * Kontor status value => WooCommerce status slug mapping.
+     *
+     * Returns normalized [ wc_slug => [kontor values (lowercased)] ]. Falls back to an
+     * identity map over the core statuses when the admin has never saved a mapping.
+     */
+    public function get_status_map() {
+        $stored = get_option('wks_status_map', false);
+
+        if ($stored === false) {
+            return $this->get_default_status_map();
+        }
+
+        if (!is_array($stored)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($stored as $wc_slug => $values) {
+            $wc_slug = sanitize_key($wc_slug);
+
+            if (is_string($values)) {
+                $values = preg_split('/[,\n]+/', $values);
+            }
+            if (!is_array($values)) {
+                continue;
+            }
+
+            $clean = [];
+            foreach ($values as $value) {
+                $value = strtolower(trim((string) $value));
+                if ($value !== '') {
+                    $clean[] = $value;
+                }
+            }
+
+            if (!empty($clean)) {
+                $normalized[$wc_slug] = array_values(array_unique($clean));
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Default (identity) status map: each WooCommerce status maps from its own slug.
+     */
+    public function get_default_status_map() {
+        $map = [];
+        foreach (array_keys(wc_get_order_statuses()) as $wc_key) {
+            $slug = str_replace('wc-', '', $wc_key);
+            $map[$slug] = [$slug];
+        }
+        return $map;
+    }
+
+    /**
+     * Log order-status sync result
+     */
+    private function log_status_sync($trigger, $success, $error_message, $duration, $stats, $unmapped = []) {
+        $message = $error_message;
+
+        if ($success) {
+            $message = sprintf(__('Order status sync completed in %s seconds', 'woo-kontor-sync'), $duration);
+            if (!empty($unmapped)) {
+                $message .= ' — ' . sprintf(
+                    /* translators: %s: comma-separated list of unmapped Kontor status values */
+                    __('Unmapped Kontor statuses (left unchanged): %s', 'woo-kontor-sync'),
+                    implode(', ', $unmapped)
+                );
+            }
+        }
+
+        WKS()->logs->add([
+            'type'    => 'status_sync',
+            'trigger' => $trigger,
+            'status'  => $success ? 'success' : 'error',
+            'message' => $message,
             'stats'   => $stats,
         ]);
     }

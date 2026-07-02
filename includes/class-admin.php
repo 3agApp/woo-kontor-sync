@@ -228,6 +228,58 @@ class WKS_Admin {
             'sanitize_callback' => 'sanitize_text_field',
             'default'           => 'wks_15min',
         ]);
+
+        register_setting('wks_settings', 'wks_status_sync_enabled', [
+            'type'    => 'boolean',
+            'default' => false,
+        ]);
+
+        register_setting('wks_settings', 'wks_status_sync_interval', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'hourly',
+        ]);
+
+        register_setting('wks_settings', 'wks_status_map', [
+            'type'              => 'array',
+            'sanitize_callback' => [$this, 'sanitize_status_map'],
+        ]);
+    }
+
+    /**
+     * Sanitize the Kontor -> WooCommerce status map option.
+     *
+     * Normalizes to [ wc_slug => [kontor values (lowercased)] ].
+     */
+    public function sanitize_status_map($value) {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $clean_map = [];
+        foreach ($value as $wc_slug => $raw) {
+            $wc_slug = sanitize_key($wc_slug);
+
+            if (is_array($raw)) {
+                $parts = $raw;
+            } else {
+                $parts = preg_split('/[,\n]+/', (string) $raw);
+            }
+
+            $values = [];
+            foreach ((array) $parts as $part) {
+                $part = strtolower(trim(sanitize_text_field((string) $part)));
+                if ($part !== '') {
+                    $values[] = $part;
+                }
+            }
+
+            if (!empty($values)) {
+                $clean_map[$wc_slug] = array_values(array_unique($values));
+            }
+        }
+
+        return $clean_map;
     }
 
     /**
@@ -295,6 +347,11 @@ class WKS_Admin {
         // Stock sync settings
         $stock_sync_enabled   = get_option('wks_stock_sync_enabled', false);
         $stock_sync_interval  = get_option('wks_stock_sync_interval', 'wks_15min');
+
+        // Order status sync settings (Kontor -> WooCommerce)
+        $status_sync_enabled  = get_option('wks_status_sync_enabled', false);
+        $status_sync_interval = get_option('wks_status_sync_interval', 'hourly');
+        $status_map           = WKS()->sync->get_status_map();
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

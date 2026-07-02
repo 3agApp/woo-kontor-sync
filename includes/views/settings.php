@@ -426,6 +426,80 @@ if (!defined('ABSPATH')) {
                     </div>
                 </div>
             </div>
+
+            <div class="wssc-section wssc-card">
+                <div class="wssc-card-header">
+                    <h2>
+                        <span class="dashicons dashicons-update"></span>
+                        <?php esc_html_e('Order Status Sync (Kontor → WooCommerce)', 'woo-kontor-sync'); ?>
+                    </h2>
+                </div>
+                <div class="wssc-card-body">
+                    <div class="wssc-form-row">
+                        <label class="wssc-label">
+                            <?php esc_html_e('Enable Order Status Sync', 'woo-kontor-sync'); ?>
+                        </label>
+                        <div class="wssc-toggle-row">
+                            <label class="wssc-switch">
+                                <input type="checkbox" id="wks-status-sync-enabled" name="status_sync_enabled" value="1" <?php checked($status_sync_enabled); ?> <?php disabled(!$license_valid); ?>>
+                                <span class="wssc-slider"></span>
+                            </label>
+                            <span class="wssc-toggle-label">
+                                <?php esc_html_e('Pull order status & tracking from Kontor and update WooCommerce orders on a schedule', 'woo-kontor-sync'); ?>
+                            </span>
+                        </div>
+                        <p class="wssc-help-text">
+                            <?php esc_html_e('Only orders previously uploaded to Kontor are updated. Kontor drives the order status and shipment/tracking data (provider, tracking number, tracking URL).', 'woo-kontor-sync'); ?>
+                        </p>
+                    </div>
+
+                    <div class="wssc-form-row">
+                        <label for="wks-status-sync-interval" class="wssc-label">
+                            <?php esc_html_e('Status Sync Interval', 'woo-kontor-sync'); ?>
+                        </label>
+                        <select id="wks-status-sync-interval" name="status_sync_interval" class="wssc-select" <?php disabled(!$license_valid); ?>>
+                            <?php foreach ($intervals as $key => $interval): ?>
+                                <option value="<?php echo esc_attr($key); ?>" <?php selected($status_sync_interval, $key); ?>>
+                                    <?php echo esc_html($interval['display']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="wssc-help-text">
+                            <?php esc_html_e('How often WooCommerce should fetch current order status/tracking from Kontor.', 'woo-kontor-sync'); ?>
+                        </p>
+                    </div>
+
+                    <div class="wssc-form-row">
+                        <label class="wssc-label">
+                            <?php esc_html_e('Status Mapping', 'woo-kontor-sync'); ?>
+                        </label>
+                        <p class="wssc-help-text" style="margin-top: 0;">
+                            <?php esc_html_e('For each WooCommerce status, enter the Kontor "orderstatus" value(s) that map to it (comma-separated, case-insensitive). Leave blank to never apply that status from Kontor. Kontor values that match nothing here are logged and left unchanged.', 'woo-kontor-sync'); ?>
+                        </p>
+                        <div class="wssc-status-map">
+                            <?php
+                            $map_statuses = wc_get_order_statuses();
+                            foreach ($map_statuses as $status_key => $status_label):
+                                $clean_key = str_replace('wc-', '', $status_key);
+                                $mapped    = isset($status_map[$clean_key]) ? implode(', ', $status_map[$clean_key]) : '';
+                            ?>
+                                <div class="wssc-status-map-row" style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <span class="wssc-status-map-label" style="min-width: 180px;">
+                                        <strong><?php echo esc_html($status_label); ?></strong>
+                                        <code style="opacity: .7;"><?php echo esc_html($clean_key); ?></code>
+                                    </span>
+                                    <input type="text"
+                                           name="status_map[<?php echo esc_attr($clean_key); ?>]"
+                                           value="<?php echo esc_attr($mapped); ?>"
+                                           class="wssc-input"
+                                           placeholder="<?php echo esc_attr($clean_key); ?>"
+                                           <?php disabled(!$license_valid); ?>>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- ============================================================

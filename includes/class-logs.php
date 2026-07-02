@@ -143,6 +143,8 @@ class WKS_Logs {
                 update_option('wks_last_order_sync_time', time());
             } elseif ($data['type'] === 'stock_sync') {
                 update_option('wks_last_stock_sync_time', time());
+            } elseif ($data['type'] === 'status_sync') {
+                update_option('wks_last_status_sync_time', time());
             }
         }
 

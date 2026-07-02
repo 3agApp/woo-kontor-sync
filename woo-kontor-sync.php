@@ -3,7 +3,7 @@
  * Plugin Name: Woo Kontor Sync
  * Plugin URI: https://3ag.app/products/woo-kontor-sync
  * Description: Sync WooCommerce products from Kontor CRM via API — import/update products with scheduled and manual sync.
- * Version: 1.1.5
+ * Version: 1.2.0
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WKS_VERSION', '1.1.5');
+define('WKS_VERSION', '1.2.0');
 define('WKS_PLUGIN_FILE', __FILE__);
 define('WKS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WKS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -290,6 +290,9 @@ final class Woo_Kontor_Sync {
      */
     public function deactivate() {
         wp_clear_scheduled_hook('wks_sync_event');
+        wp_clear_scheduled_hook('wks_order_sync_event');
+        wp_clear_scheduled_hook('wks_stock_sync_event');
+        wp_clear_scheduled_hook('wks_status_sync_event');
         wp_clear_scheduled_hook('wks_watchdog_check');
         wp_clear_scheduled_hook('wks_license_check');
         wp_clear_scheduled_hook('wks_update_check');

@@ -29,6 +29,14 @@ $options = [
     'wks_order_account_id',
     'wks_order_sales_channel',
     'wks_order_sync_interval',
+    'wks_last_order_sync_time',
+    'wks_stock_sync_enabled',
+    'wks_stock_sync_interval',
+    'wks_last_stock_sync_time',
+    'wks_status_sync_enabled',
+    'wks_status_sync_interval',
+    'wks_status_map',
+    'wks_last_status_sync_time',
 ];
 
 foreach ($options as $option) {
@@ -41,6 +49,10 @@ $transients = [
     'wks_update_data',
     'wks_order_sync_running',
     'wks_last_manual_order_sync',
+    'wks_stock_sync_running',
+    'wks_last_manual_stock_sync',
+    'wks_status_sync_running',
+    'wks_last_manual_status_sync',
 ];
 
 foreach ($transients as $transient) {
@@ -54,6 +66,8 @@ $cron_hooks = [
     'wks_license_check',
     'wks_update_check',
     'wks_order_sync_event',
+    'wks_stock_sync_event',
+    'wks_status_sync_event',
 ];
 
 foreach ($cron_hooks as $hook) {

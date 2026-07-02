@@ -125,6 +125,7 @@
             $('#wssc-run-sync').on('click', this.runSync.bind(this));
             $('#wssc-run-order-sync').on('click', this.runOrderSync.bind(this));
             $('#wssc-run-stock-sync').on('click', this.runStockSync.bind(this));
+            $('#wssc-run-status-sync').on('click', this.runStatusSync.bind(this));
 
             // Logs
             $('.wssc-view-log').on('click', this.viewLog.bind(this));
@@ -266,6 +267,40 @@
                 })
                 .fail(function () {
                     WKS.toast('Stock sync failed', 'error');
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Run manual order-status sync (Kontor → WooCommerce)
+         */
+        runStatusSync: function (e) {
+            e.preventDefault();
+
+            if (!confirm('Fetch order status & tracking from Kontor now?')) {
+                return;
+            }
+
+            const $btn = $('#wssc-run-status-sync');
+            const originalHtml = $btn.html();
+
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Syncing status…');
+
+            this.ajax('wks_run_status_sync', {})
+                .done(function (response) {
+                    if (response.success) {
+                        WKS.toast(response.data.message, 'success');
+                        setTimeout(function () {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        WKS.toast(response.data.message, 'error');
+                        $btn.prop('disabled', false).html(originalHtml);
+                    }
+                })
+                .fail(function () {
+                    WKS.toast('Order status sync failed', 'error');
                     $btn.prop('disabled', false).html(originalHtml);
                 });
         },
@@ -689,11 +724,21 @@
                 order_sales_channel: $('#wks-order-sales-channel').val(),
                 order_sync_interval: $('#wks-order-sync-interval').val(),
                 stock_sync_enabled: $('#wks-stock-sync-enabled').is(':checked'),
-                stock_sync_interval: $('#wks-stock-sync-interval').val()
+                stock_sync_interval: $('#wks-stock-sync-interval').val(),
+                status_sync_enabled: $('#wks-status-sync-enabled').is(':checked'),
+                status_sync_interval: $('#wks-status-sync-interval').val(),
+                status_map: {}
             };
 
             $('input[name="order_statuses[]"]:checked').each(function () {
                 data.order_statuses.push($(this).val());
+            });
+
+            $('input[name^="status_map["]').each(function () {
+                const match = $(this).attr('name').match(/^status_map\[(.+)\]$/);
+                if (match) {
+                    data.status_map[match[1]] = $(this).val();
+                }
             });
 
             this.ajax('wks_save_settings', data)

@@ -122,6 +122,7 @@ class WKS_Scheduler {
         $this->reschedule_product_sync();
         $this->reschedule_order_sync();
         $this->reschedule_stock_sync();
+        $this->reschedule_status_sync();
     }
 
     /**
@@ -158,6 +159,18 @@ class WKS_Scheduler {
         if (get_option('wks_stock_sync_enabled', false) && WKS()->license->is_valid()) {
             $interval = get_option('wks_stock_sync_interval', 'wks_15min');
             $this->schedule('wks_stock_sync_event', $interval, true);
+        }
+    }
+
+    /**
+     * Rebuild the order-status-sync schedule.
+     */
+    public function reschedule_status_sync() {
+        wp_clear_scheduled_hook('wks_status_sync_event');
+
+        if (get_option('wks_status_sync_enabled', false) && WKS()->license->is_valid()) {
+            $interval = get_option('wks_status_sync_interval', 'hourly');
+            $this->schedule('wks_status_sync_event', $interval, true);
         }
     }
 
@@ -243,19 +256,22 @@ class WKS_Scheduler {
             update_option('wks_enabled', false);
             update_option('wks_order_sync_enabled', false);
             update_option('wks_stock_sync_enabled', false);
+            update_option('wks_status_sync_enabled', false);
 
             $this->unschedule('wks_sync_event');
             $this->unschedule('wks_order_sync_event');
             $this->unschedule('wks_stock_sync_event');
+            $this->unschedule('wks_status_sync_event');
 
             update_option('wks_watchdog_last_check', time());
             return;
         }
 
         $checks = [
-            ['wks_sync_event',       'wks_enabled',            'wks_schedule_interval',   'reschedule_product_sync', 'hourly'],
-            ['wks_order_sync_event', 'wks_order_sync_enabled', 'wks_order_sync_interval', 'reschedule_order_sync',   'hourly'],
-            ['wks_stock_sync_event', 'wks_stock_sync_enabled', 'wks_stock_sync_interval', 'reschedule_stock_sync',   'wks_15min'],
+            ['wks_sync_event',        'wks_enabled',             'wks_schedule_interval',    'reschedule_product_sync', 'hourly'],
+            ['wks_order_sync_event',  'wks_order_sync_enabled',  'wks_order_sync_interval',  'reschedule_order_sync',   'hourly'],
+            ['wks_stock_sync_event',  'wks_stock_sync_enabled',  'wks_stock_sync_interval',  'reschedule_stock_sync',   'wks_15min'],
+            ['wks_status_sync_event', 'wks_status_sync_enabled', 'wks_status_sync_interval', 'reschedule_status_sync',  'hourly'],
         ];
 
         $rescheduled = [];
@@ -337,6 +353,12 @@ class WKS_Scheduler {
             'stock_sync_last_run'     => get_option('wks_last_stock_sync_time'),
             'stock_sync_last_run_human' => get_option('wks_last_stock_sync_time')
                 ? human_time_diff(get_option('wks_last_stock_sync_time'), time()) . ' ' . __('ago', 'woo-kontor-sync')
+                : null,
+            'status_sync_enabled'     => get_option('wks_status_sync_enabled', false),
+            'status_sync_next_run'    => wp_next_scheduled('wks_status_sync_event'),
+            'status_sync_last_run'    => get_option('wks_last_status_sync_time'),
+            'status_sync_last_run_human' => get_option('wks_last_status_sync_time')
+                ? human_time_diff(get_option('wks_last_status_sync_time'), time()) . ' ' . __('ago', 'woo-kontor-sync')
                 : null,
         ];
     }
