@@ -2123,6 +2123,16 @@ class WKS_Sync {
                 continue;
             }
 
+            // Only act on orders this plugin actually uploaded to Kontor: the row's
+            // Kontor order number (Auftrnr) must match the one stored at upload time.
+            // Guards against a Kontor ordernumber colliding with an unrelated WC order ID.
+            $row_auftrnr    = isset($row['Auftrnr']) ? trim((string) $row['Auftrnr']) : '';
+            $stored_auftrnr = trim((string) $order->get_meta('_wks_kontor_auftrnr'));
+            if ($row_auftrnr === '' || $stored_auftrnr === '' || $row_auftrnr !== $stored_auftrnr) {
+                $stats['skipped']++;
+                continue;
+            }
+
             try {
                 // --- Order status ---
                 $raw_status = isset($row['orderstatus']) ? trim((string) $row['orderstatus']) : '';
