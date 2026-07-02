@@ -2077,18 +2077,17 @@ class WKS_Sync {
 
         $rows = isset($result['data']) ? $result['data'] : [];
 
-        // Build a reverse lookup: normalized Kontor status value => WooCommerce status slug.
-        $valid_statuses = array_map(function ($k) {
-            return str_replace('wc-', '', $k);
-        }, array_keys(wc_get_order_statuses()));
+        // Actionable mapping (Kontor status value => WooCommerce slug). Rows set to
+        // "Do nothing" are excluded here but still count as "defined" below.
+        $status_map = $this->get_status_map();
 
-        $reverse_map = [];
-        foreach ($this->get_status_map() as $wc_slug => $kontor_values) {
-            if (!in_array($wc_slug, $valid_statuses, true)) {
-                continue;
-            }
-            foreach ($kontor_values as $value) {
-                $reverse_map[$value] = $wc_slug;
+        // Every Kontor value the admin has listed (including "Do nothing"), so a
+        // genuinely-unknown status can be told apart from an intentionally-ignored one.
+        $defined_keys = [];
+        foreach ((array) get_option('wks_status_map', []) as $from => $to) {
+            $from = strtolower(trim((string) $from));
+            if ($from !== '') {
+                $defined_keys[$from] = true;
             }
         }
 
@@ -2129,15 +2128,19 @@ class WKS_Sync {
                     $order->update_meta_data('_wks_kontor_orderstatus', sanitize_text_field($raw_status));
 
                     $key = strtolower($raw_status);
-                    if (isset($reverse_map[$key])) {
-                        $target = $reverse_map[$key];
+                    if (isset($status_map[$key])) {
+                        $target = $status_map[$key];
                         if ($order->get_status() !== $target) {
                             $order->set_status($target, __('Order status synced from Kontor.', 'woo-kontor-sync'));
                             $stats['updated']++;
                         } else {
                             $stats['unchanged']++;
                         }
+                    } elseif (isset($defined_keys[$key])) {
+                        // Explicitly mapped to "Do nothing" — leave the status unchanged.
+                        $stats['unchanged']++;
                     } else {
+                        // No mapping defined for this Kontor status — do nothing, but surface it.
                         $stats['unmapped']++;
                         $unmapped_values[$key] = true;
                     }
@@ -2191,58 +2194,37 @@ class WKS_Sync {
     }
 
     /**
-     * Kontor status value => WooCommerce status slug mapping.
+     * Actionable Kontor status value => WooCommerce status slug mapping.
      *
-     * Returns normalized [ wc_slug => [kontor values (lowercased)] ]. Falls back to an
-     * identity map over the core statuses when the admin has never saved a mapping.
+     * Stored as [ kontor_value (lowercased) => wc_slug | '' ]. Returns only the rows
+     * that target a real WooCommerce status; rows set to "Do nothing" (empty target)
+     * or targeting an unknown status are excluded. Empty when nothing is mapped.
      */
     public function get_status_map() {
-        $stored = get_option('wks_status_map', false);
-
-        if ($stored === false) {
-            return $this->get_default_status_map();
-        }
-
+        $stored = get_option('wks_status_map', []);
         if (!is_array($stored)) {
             return [];
         }
 
-        $normalized = [];
-        foreach ($stored as $wc_slug => $values) {
-            $wc_slug = sanitize_key($wc_slug);
+        $valid_statuses = array_map(function ($k) {
+            return str_replace('wc-', '', $k);
+        }, array_keys(wc_get_order_statuses()));
 
-            if (is_string($values)) {
-                $values = preg_split('/[,\n]+/', $values);
+        $map = [];
+        foreach ($stored as $from => $to) {
+            $from = strtolower(trim((string) $from));
+            $to   = sanitize_key((string) $to);
+
+            if ($from === '' || $to === '') {
+                continue; // no source value, or "Do nothing"
             }
-            if (!is_array($values)) {
+            if (!in_array($to, $valid_statuses, true)) {
                 continue;
             }
 
-            $clean = [];
-            foreach ($values as $value) {
-                $value = strtolower(trim((string) $value));
-                if ($value !== '') {
-                    $clean[] = $value;
-                }
-            }
-
-            if (!empty($clean)) {
-                $normalized[$wc_slug] = array_values(array_unique($clean));
-            }
+            $map[$from] = $to;
         }
 
-        return $normalized;
-    }
-
-    /**
-     * Default (identity) status map: each WooCommerce status maps from its own slug.
-     */
-    public function get_default_status_map() {
-        $map = [];
-        foreach (array_keys(wc_get_order_statuses()) as $wc_key) {
-            $slug = str_replace('wc-', '', $wc_key);
-            $map[$slug] = [$slug];
-        }
         return $map;
     }
 

@@ -249,34 +249,31 @@ class WKS_Admin {
     /**
      * Sanitize the Kontor -> WooCommerce status map option.
      *
-     * Normalizes to [ wc_slug => [kontor values (lowercased)] ].
+     * Normalizes to [ kontor_value (lowercased) => wc_slug | '' ], where an empty
+     * target means "Do nothing" (leave the WooCommerce status unchanged).
      */
     public function sanitize_status_map($value) {
         if (!is_array($value)) {
             return [];
         }
 
+        $valid_statuses = array_map(function ($k) {
+            return str_replace('wc-', '', $k);
+        }, array_keys(wc_get_order_statuses()));
+
         $clean_map = [];
-        foreach ($value as $wc_slug => $raw) {
-            $wc_slug = sanitize_key($wc_slug);
+        foreach ($value as $from => $to) {
+            $from = strtolower(trim(sanitize_text_field((string) $from)));
+            $to   = sanitize_key((string) $to);
 
-            if (is_array($raw)) {
-                $parts = $raw;
-            } else {
-                $parts = preg_split('/[,\n]+/', (string) $raw);
+            if ($from === '') {
+                continue;
+            }
+            if ($to !== '' && !in_array($to, $valid_statuses, true)) {
+                $to = '';
             }
 
-            $values = [];
-            foreach ((array) $parts as $part) {
-                $part = strtolower(trim(sanitize_text_field((string) $part)));
-                if ($part !== '') {
-                    $values[] = $part;
-                }
-            }
-
-            if (!empty($values)) {
-                $clean_map[$wc_slug] = array_values(array_unique($values));
-            }
+            $clean_map[$from] = $to;
         }
 
         return $clean_map;
@@ -351,7 +348,10 @@ class WKS_Admin {
         // Order status sync settings (Kontor -> WooCommerce)
         $status_sync_enabled  = get_option('wks_status_sync_enabled', false);
         $status_sync_interval = get_option('wks_status_sync_interval', 'hourly');
-        $status_map           = WKS()->sync->get_status_map();
+        $status_map           = get_option('wks_status_map', []);
+        if (!is_array($status_map)) {
+            $status_map = [];
+        }
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }
