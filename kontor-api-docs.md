@@ -17,14 +17,23 @@ The documentation is written in English, but API paths, request field names, res
 | Category list | Implemented | `search` endpoint with `entity: "categories"` and `filter.shopid` |
 | Category upsert | Implemented | `upsert` endpoint with `name: "categories"` |
 | Order upload | Implemented for test database | `upsert` endpoint with `name: "orders"` |
-| Order status/tracking sync | Proposed/planned | Shape was shared, but implementation was not confirmed in the emails |
+| Order search/status lookup | Implemented | `search` endpoint with `entity: "orders"` and `filter.shopid`; returns status/tracking fields |
+| Legacy order status endpoint | Proposed/planned | `/kontor/orderstatus` shape was shared earlier, but implementation was not confirmed in the emails |
 
 ## Base URL And Authentication
 
-Base URL:
+Base API URL for all endpoints:
 
 ```text
-https://sp3api.kontor-crm.de
+https://sp3api.kontor-crm.de/api/v1
+```
+
+All endpoint paths in this document are shown relative to the API v1 base URL.
+
+Example:
+
+```text
+/kontor/search → https://sp3api.kontor-crm.de/api/v1/kontor/search
 ```
 
 All requests use:
@@ -60,10 +69,27 @@ For searches, the message may be `"Search completed successfully"`.
 ## Endpoint: Search
 
 ```http
-POST /api/v1/kontor/search
+POST /kontor/search
 ```
 
 The `search` endpoint is used for multiple read operations. The operation is selected by the request body field `entity`.
+
+Generic request shape:
+
+```json
+{
+  "entity": "orders",
+  "filter": {
+    "shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `entity` | string | Yes | Name of the entity to search, for example `products`, `stock`, `manufacturer`, `shops`, `categories`, or `orders`. |
+| `filter` | object | Depends on entity | Key/value pairs used to filter the search results. Required for some entities such as `categories` and `orders`. |
+| `paging` | object | Depends on entity | Used by paginated entities such as `products`. |
 
 ### Product Search
 
@@ -440,10 +466,88 @@ Notes:
 - The category list in Kontor can be retrieved for information and verification.
 - Product category assignments depend on category IDs, so WooCommerce category IDs must remain stable over time.
 
+### Order Search
+
+Use this to retrieve order status and shipment/tracking data from Kontor for a specific shop.
+
+```bash
+curl --location 'https://sp3api.kontor-crm.de/api/v1/kontor/search' \
+--header 'x-api-key: <YOUR_API_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+  "entity": "orders",
+  "filter": {
+    "shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+  }
+}'
+```
+
+Request body:
+
+```json
+{
+  "entity": "orders",
+  "filter": {
+    "shopid": "136cdc2f-f5af-4e04-8e29-654e04fc707b"
+  }
+}
+```
+
+Rules:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `entity` | Yes | Must be `"orders"`. |
+| `filter` | Yes | Key/value pairs used to filter the order search results. |
+| `filter.shopid` | Yes | Valid Kontor shop ID. Example: `136cdc2f-f5af-4e04-8e29-654e04fc707b`. |
+
+Example response:
+
+```json
+{
+  "success": true,
+  "message": "Search completed successfully",
+  "meta": {
+    "durationMs": 737,
+    "rowCount": 1,
+    "totalCount": 1
+  },
+  "data": [
+    {
+      "Auftrnr": "AW 214641",
+      "ordernumber": "70525",
+      "orderstatus": "completed",
+      "provider": null,
+      "trackinginfo": null,
+      "trackingurl": null
+    }
+  ],
+  "errorCode": null,
+  "details": null
+}
+```
+
+Response item fields:
+
+| API field | English meaning |
+| --- | --- |
+| `Auftrnr` | Kontor internal order number. |
+| `ordernumber` | External/shop order number. |
+| `orderstatus` | Current order status. |
+| `provider` | Shipping provider. |
+| `trackinginfo` | Tracking information or tracking number. |
+| `trackingurl` | Shipment tracking URL. |
+
+Notes:
+
+- Returned fields may change depending on the selected `entity`.
+- If no matching records are found, `data` will be an empty array and `meta.rowCount` will be `0`.
+- For current order status/tracking sync, this implemented `search` endpoint with `entity: "orders"` should be preferred over the older proposed `/kontor/orderstatus` endpoint unless Codegarden/3AG confirms otherwise.
+
 ## Endpoint: Upsert
 
 ```http
-POST /api/v1/kontor/upsert
+POST /kontor/upsert
 ```
 
 The `upsert` endpoint is used for write operations. The operation is selected by the request body field `name`.
@@ -700,10 +804,10 @@ Response field reference:
 
 ## Proposed Endpoint: Order Status / Tracking
 
-This endpoint was proposed by Codegarden on 2026-03-26. The email did not confirm final implementation. Verify before using.
+This endpoint was proposed by Codegarden on 2026-03-26. The email did not confirm final implementation. A separate implemented order lookup is now documented above under `search` with `entity: "orders"`, so verify whether this older endpoint is still needed before using it.
 
 ```http
-POST /api/v1/kontor/orderstatus
+POST /kontor/orderstatus
 ```
 
 Example request:
@@ -788,7 +892,7 @@ For B2B Retail and Education shops:
 
 1. Send complete orders and customer data to Kontor with `name: "orders"`.
 2. Kontor handles invoices, delivery notes, stock deductions, and fulfillment workflow.
-3. WooCommerce should later retrieve order status/tracking once that endpoint is confirmed.
+3. WooCommerce should retrieve order status/tracking with the implemented search endpoint using `entity: "orders"` and `filter.shopid`. If the older `/kontor/orderstatus` endpoint is later confirmed, compare both schemas before switching.
 
 For B2C end-customer shops:
 
@@ -803,6 +907,6 @@ For B2C end-customer shops:
 | API key | Should the existing key be rotated because it was shared in email and pasted into working docs/context? |
 | Order endpoint environment | Is order upsert still test-database only, or has a production endpoint/environment been enabled? |
 | Order duplicate behavior | If an existing `orderNumber` is sent again, is it ignored, updated, or returned as already imported? |
-| Order status endpoint | Has `/api/v1/kontor/orderstatus` been implemented, and is the proposed schema final? |
+| Order status endpoint | Should production order status/tracking sync use `search` with `entity: "orders"`, or will `/kontor/orderstatus` also be implemented with a different schema? |
 | Stock reservation | For B2C shops, what exact API behavior reserves stock without full invoicing/fulfillment in Kontor? |
 | Availability/backorder | What exact fields will represent "on order", extended delivery time, reorder, or backorder state? |
