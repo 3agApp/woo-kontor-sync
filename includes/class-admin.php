@@ -333,7 +333,7 @@ class WKS_Admin {
         $category_rows = $this->get_category_export_rows();
         $products      = wc_get_products([
             'limit'   => -1,
-            'status'  => array_keys(wc_get_product_statuses()),
+            'status'  => $this->get_export_product_statuses(),
             'return'  => 'ids',
             'orderby' => 'ID',
             'order'   => 'ASC',
@@ -447,6 +447,21 @@ class WKS_Admin {
             'rows'   => $rows,
             'id_map' => $id_map,
         ];
+    }
+
+    /**
+     * Return product statuses without relying on WooCommerce helpers that may be unavailable.
+     */
+    private function get_export_product_statuses() {
+        $statuses = get_post_stati([
+            'show_in_admin_all_list' => true,
+        ], 'names');
+
+        if (empty($statuses)) {
+            $statuses = ['publish', 'pending', 'draft', 'future', 'private'];
+        }
+
+        return array_values(array_unique($statuses));
     }
 
     /**
