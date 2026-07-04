@@ -474,61 +474,32 @@ if (!defined('ABSPATH')) {
                             <?php esc_html_e('Status Mapping', 'woo-kontor-sync'); ?>
                         </label>
                         <p class="wssc-help-text" style="margin-top: 0;">
-                            <?php esc_html_e('Map a Kontor "orderstatus" value to a WooCommerce status. Kontor values are matched case-insensitively. Any status without a mapping — or set to "Do nothing" — leaves the WooCommerce status unchanged (tracking is still synced). Add a row for each Kontor status you want to act on.', 'woo-kontor-sync'); ?>
+                            <?php esc_html_e('Kontor order statuses are mapped to WooCommerce statuses automatically as follows. Tracking data (provider, tracking number, tracking URL) is synced for every order regardless of status.', 'woo-kontor-sync'); ?>
                         </p>
 
-                        <?php
-                        $wc_status_choices = [];
-                        foreach (wc_get_order_statuses() as $status_key => $status_label) {
-                            $wc_status_choices[str_replace('wc-', '', $status_key)] = $status_label;
-                        }
-                        ?>
-
-                        <div class="wssc-status-map" id="wks-status-map-rows">
-                            <?php foreach ($status_map as $from => $to): ?>
-                                <div class="wssc-status-map-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                    <input type="text"
-                                           class="wssc-input wssc-status-map-from"
-                                           value="<?php echo esc_attr($from); ?>"
-                                           placeholder="<?php esc_attr_e('Kontor status (e.g. shipped)', 'woo-kontor-sync'); ?>"
-                                           <?php disabled(!$license_valid); ?>>
-                                    <span aria-hidden="true">→</span>
-                                    <select class="wssc-select wssc-status-map-to" <?php disabled(!$license_valid); ?>>
-                                        <option value=""><?php esc_html_e('Do nothing', 'woo-kontor-sync'); ?></option>
-                                        <?php foreach ($wc_status_choices as $slug => $label): ?>
-                                            <option value="<?php echo esc_attr($slug); ?>" <?php selected((string) $to, $slug); ?>><?php echo esc_html($label); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="button" class="wssc-btn wssc-btn-secondary wssc-btn-sm wssc-status-map-remove">
-                                        <?php esc_html_e('Remove', 'woo-kontor-sync'); ?>
-                                    </button>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <button type="button" id="wks-status-map-add" class="wssc-btn wssc-btn-secondary wssc-btn-sm" <?php disabled(!$license_valid); ?>>
-                            <span class="dashicons dashicons-plus-alt2"></span>
-                            <?php esc_html_e('Add mapping', 'woo-kontor-sync'); ?>
-                        </button>
-
-                        <template id="wks-status-map-template">
-                            <div class="wssc-status-map-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                <input type="text"
-                                       class="wssc-input wssc-status-map-from"
-                                       value=""
-                                       placeholder="<?php esc_attr_e('Kontor status (e.g. shipped)', 'woo-kontor-sync'); ?>">
-                                <span aria-hidden="true">→</span>
-                                <select class="wssc-select wssc-status-map-to">
-                                    <option value=""><?php esc_html_e('Do nothing', 'woo-kontor-sync'); ?></option>
-                                    <?php foreach ($wc_status_choices as $slug => $label): ?>
-                                        <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($label); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <button type="button" class="wssc-btn wssc-btn-secondary wssc-btn-sm wssc-status-map-remove">
-                                    <?php esc_html_e('Remove', 'woo-kontor-sync'); ?>
-                                </button>
-                            </div>
-                        </template>
+                        <?php $wc_statuses = wc_get_order_statuses(); ?>
+                        <table class="widefat striped" style="max-width: 520px;">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e('Kontor status', 'woo-kontor-sync'); ?></th>
+                                    <th><?php esc_html_e('WooCommerce status', 'woo-kontor-sync'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (WKS_Sync::KONTOR_STATUS_MAP as $from => $to): ?>
+                                    <tr>
+                                        <td><code><?php echo esc_html($from); ?></code></td>
+                                        <td>
+                                            <?php
+                                            echo isset($wc_statuses['wc-' . $to])
+                                                ? esc_html($wc_statuses['wc-' . $to])
+                                                : esc_html($to);
+                                            ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

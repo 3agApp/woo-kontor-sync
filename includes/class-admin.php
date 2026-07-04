@@ -23,6 +23,79 @@ class WKS_Admin {
         add_action('admin_menu', [$this, 'add_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('add_meta_boxes', [$this, 'add_tracking_meta_box'], 10, 2);
+    }
+
+    /**
+     * Kontor tracking meta box on the order edit screen (legacy + HPOS).
+     */
+    public function add_tracking_meta_box($post_type, $post) {
+        $screen = 'shop_order';
+        if (
+            class_exists(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)
+            && wc_get_container()->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)->custom_orders_table_usage_is_enabled()
+        ) {
+            $screen = wc_get_page_screen_id('shop-order');
+        }
+
+        if ($post_type !== $screen) {
+            return;
+        }
+
+        add_meta_box(
+            'wks-kontor-tracking',
+            __('Kontor Shipment Tracking', 'woo-kontor-sync'),
+            [$this, 'render_tracking_meta_box'],
+            $screen,
+            'side',
+            'default'
+        );
+    }
+
+    /**
+     * Render the (read-only) Kontor tracking meta box.
+     */
+    public function render_tracking_meta_box($post_or_order) {
+        $order = $post_or_order instanceof WC_Order ? $post_or_order : wc_get_order($post_or_order->ID);
+        if (!$order instanceof WC_Order) {
+            return;
+        }
+
+        $kontor_status = trim((string) $order->get_meta('_wks_kontor_orderstatus'));
+        $provider      = trim((string) $order->get_meta('_wks_kontor_provider'));
+        $tracking      = trim((string) $order->get_meta('_wks_tracking_number'));
+        $tracking_url  = trim((string) $order->get_meta('_wks_tracking_url'));
+        $synced        = (int) $order->get_meta('_wks_status_synced');
+
+        if ($kontor_status === '' && $tracking === '' && $synced === 0) {
+            echo '<p>' . esc_html__('No tracking data has been synced from Kontor for this order yet.', 'woo-kontor-sync') . '</p>';
+            return;
+        }
+        ?>
+        <p>
+            <?php if ($kontor_status !== ''): ?>
+                <strong><?php esc_html_e('Kontor status:', 'woo-kontor-sync'); ?></strong>
+                <code><?php echo esc_html($kontor_status); ?></code><br>
+            <?php endif; ?>
+            <?php if ($provider !== ''): ?>
+                <strong><?php esc_html_e('Shipping provider:', 'woo-kontor-sync'); ?></strong>
+                <?php echo esc_html($provider); ?><br>
+            <?php endif; ?>
+            <?php if ($tracking !== ''): ?>
+                <strong><?php esc_html_e('Tracking number:', 'woo-kontor-sync'); ?></strong>
+                <?php if ($tracking_url !== ''): ?>
+                    <a href="<?php echo esc_url($tracking_url); ?>" target="_blank" rel="noopener"><?php echo esc_html($tracking); ?></a>
+                <?php else: ?>
+                    <?php echo esc_html($tracking); ?>
+                <?php endif; ?>
+                <br>
+            <?php endif; ?>
+            <?php if ($synced > 0): ?>
+                <strong><?php esc_html_e('Last synced:', 'woo-kontor-sync'); ?></strong>
+                <?php echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), $synced)); ?>
+            <?php endif; ?>
+        </p>
+        <?php
     }
 
     /**
@@ -239,44 +312,6 @@ class WKS_Admin {
             'sanitize_callback' => 'sanitize_text_field',
             'default'           => 'hourly',
         ]);
-
-        register_setting('wks_settings', 'wks_status_map', [
-            'type'              => 'array',
-            'sanitize_callback' => [$this, 'sanitize_status_map'],
-        ]);
-    }
-
-    /**
-     * Sanitize the Kontor -> WooCommerce status map option.
-     *
-     * Normalizes to [ kontor_value (lowercased) => wc_slug | '' ], where an empty
-     * target means "Do nothing" (leave the WooCommerce status unchanged).
-     */
-    public function sanitize_status_map($value) {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $valid_statuses = array_map(function ($k) {
-            return str_replace('wc-', '', $k);
-        }, array_keys(wc_get_order_statuses()));
-
-        $clean_map = [];
-        foreach ($value as $from => $to) {
-            $from = strtolower(trim(sanitize_text_field((string) $from)));
-            $to   = sanitize_key((string) $to);
-
-            if ($from === '') {
-                continue;
-            }
-            if ($to !== '' && !in_array($to, $valid_statuses, true)) {
-                $to = '';
-            }
-
-            $clean_map[$from] = $to;
-        }
-
-        return $clean_map;
     }
 
     /**
@@ -348,10 +383,6 @@ class WKS_Admin {
         // Order status sync settings (Kontor -> WooCommerce)
         $status_sync_enabled  = get_option('wks_status_sync_enabled', false);
         $status_sync_interval = get_option('wks_status_sync_interval', 'hourly');
-        $status_map           = get_option('wks_status_map', []);
-        if (!is_array($status_map)) {
-            $status_map = [];
-        }
 
         include WKS_PLUGIN_DIR . 'includes/views/settings.php';
     }

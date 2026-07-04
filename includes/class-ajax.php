@@ -322,32 +322,8 @@ class WKS_Ajax {
         $status_sync_enabled  = isset($_POST['status_sync_enabled']) && filter_var(wp_unslash($_POST['status_sync_enabled']), FILTER_VALIDATE_BOOLEAN);
         $status_sync_interval = isset($_POST['status_sync_interval']) ? sanitize_text_field($_POST['status_sync_interval']) : 'hourly';
 
-        // Status mapping: list of { from: kontor value, to: wc status | '' (do nothing) }.
-        $valid_statuses = array_map(function ($k) {
-            return str_replace('wc-', '', $k);
-        }, array_keys(wc_get_order_statuses()));
-
-        $status_map = [];
-        if (isset($_POST['status_map']) && is_array($_POST['status_map'])) {
-            foreach (wp_unslash($_POST['status_map']) as $pair) {
-                if (!is_array($pair) || !isset($pair['from'])) {
-                    continue;
-                }
-                $from = strtolower(trim(sanitize_text_field($pair['from'])));
-                $to   = isset($pair['to']) ? sanitize_key($pair['to']) : '';
-                if ($from === '') {
-                    continue;
-                }
-                if ($to !== '' && !in_array($to, $valid_statuses, true)) {
-                    $to = '';
-                }
-                $status_map[$from] = $to;
-            }
-        }
-
         update_option('wks_status_sync_enabled', $status_sync_enabled);
         update_option('wks_status_sync_interval', $status_sync_interval);
-        update_option('wks_status_map', $status_map);
 
         // Rebuild every sync's cron from current option state.
         WKS()->scheduler->reschedule_all();

@@ -133,8 +133,6 @@
 
             // Settings
             $('#wssc-settings-form').on('submit', this.saveSettings.bind(this));
-            $('#wks-status-map-add').on('click', this.addStatusMapRow.bind(this));
-            $(document).on('click', '.wssc-status-map-remove', this.removeStatusMapRow);
             $('#wssc-test-connection').on('click', this.testConnection.bind(this));
 
             // Manufacturer tags
@@ -305,29 +303,6 @@
                     WKS.toast('Order status sync failed', 'error');
                     $btn.prop('disabled', false).html(originalHtml);
                 });
-        },
-
-        /**
-         * Add an empty order-status mapping row
-         */
-        addStatusMapRow: function (e) {
-            e.preventDefault();
-
-            const tmpl = document.getElementById('wks-status-map-template');
-            const rows = document.getElementById('wks-status-map-rows');
-            if (!tmpl || !rows) {
-                return;
-            }
-
-            rows.appendChild(document.importNode(tmpl.content, true));
-        },
-
-        /**
-         * Remove an order-status mapping row
-         */
-        removeStatusMapRow: function (e) {
-            e.preventDefault();
-            $(e.currentTarget).closest('.wssc-status-map-row').remove();
         },
 
         /**
@@ -751,20 +726,11 @@
                 stock_sync_enabled: $('#wks-stock-sync-enabled').is(':checked'),
                 stock_sync_interval: $('#wks-stock-sync-interval').val(),
                 status_sync_enabled: $('#wks-status-sync-enabled').is(':checked'),
-                status_sync_interval: $('#wks-status-sync-interval').val(),
-                status_map: []
+                status_sync_interval: $('#wks-status-sync-interval').val()
             };
 
             $('input[name="order_statuses[]"]:checked').each(function () {
                 data.order_statuses.push($(this).val());
-            });
-
-            $('#wks-status-map-rows .wssc-status-map-row').each(function () {
-                const from = ($(this).find('.wssc-status-map-from').val() || '').trim();
-                const to = $(this).find('.wssc-status-map-to').val() || '';
-                if (from !== '') {
-                    data.status_map.push({ from: from, to: to });
-                }
             });
 
             this.ajax('wks_save_settings', data)

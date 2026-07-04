@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.5
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,13 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.3.0 =
+* Changed: Kontor → WooCommerce order status mapping is now fixed (canceled → Cancelled, in_progress → Processing, partially_completed → Partially Completed, completed → Completed); the configurable Status Mapping table was removed
+* Added: New "Partially Completed" WooCommerce order status for Kontor's partially_completed
+* Added: Customers now see shipment tracking (provider, tracking number, tracking link) on the My Account order page, the order-received page and in order emails
+* Added: Read-only Kontor tracking meta box on the admin order edit screen
+* Added: German translations (de_DE, de_DE_formal, de_CH, de_CH_informal) for the order status labels and tracking display
 
 = 1.1.5 =
 * Changed: Reduced Kontor product API page size to 500 items for more stable imports.

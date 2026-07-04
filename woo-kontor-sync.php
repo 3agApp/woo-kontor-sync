@@ -3,7 +3,7 @@
  * Plugin Name: Woo Kontor Sync
  * Plugin URI: https://3ag.app/products/woo-kontor-sync
  * Description: Sync WooCommerce products from Kontor CRM via API — import/update products with scheduled and manual sync.
- * Version: 1.2.4
+ * Version: 1.3.0
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WKS_VERSION', '1.2.4');
+define('WKS_VERSION', '1.3.0');
 define('WKS_PLUGIN_FILE', __FILE__);
 define('WKS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WKS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -84,6 +84,8 @@ final class Woo_Kontor_Sync {
     public $admin;
     public $ajax;
     public $updater;
+    public $order_status;
+    public $frontend;
 
     /**
      * Get instance
@@ -125,12 +127,14 @@ final class Woo_Kontor_Sync {
         }
 
         // Initialize components
-        $this->license   = new WKS_License();
-        $this->logs      = new WKS_Logs();
-        $this->sync      = new WKS_Sync();
-        $this->scheduler = new WKS_Scheduler();
-        $this->ajax      = new WKS_Ajax();
-        $this->updater   = new WKS_Updater();
+        $this->license      = new WKS_License();
+        $this->logs         = new WKS_Logs();
+        $this->sync         = new WKS_Sync();
+        $this->scheduler    = new WKS_Scheduler();
+        $this->ajax         = new WKS_Ajax();
+        $this->updater      = new WKS_Updater();
+        $this->order_status = new WKS_Order_Status();
+        $this->frontend     = new WKS_Frontend();
 
         if (is_admin()) {
             $this->admin = new WKS_Admin();

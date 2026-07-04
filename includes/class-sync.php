@@ -2033,7 +2033,7 @@ class WKS_Sync {
      */
     public function run_status_sync($trigger = 'manual') {
         if (!WKS()->license->is_valid()) {
-            $this->log_status_sync($trigger, false, __('Invalid or expired license. Order status sync aborted.', 'woo-kontor-sync'), 0, [], []);
+            $this->log_status_sync($trigger, false, __('Invalid or expired license. Order status sync aborted.', 'woo-kontor-sync'), 0, []);
             return [
                 'success' => false,
                 'message' => __('Invalid or expired license.', 'woo-kontor-sync'),
@@ -2045,7 +2045,7 @@ class WKS_Sync {
         $shop_id  = get_option('wks_shop_id', '');
 
         if (empty($api_host) || empty($api_key)) {
-            $this->log_status_sync($trigger, false, __('API Host or API Key is not configured.', 'woo-kontor-sync'), 0, [], []);
+            $this->log_status_sync($trigger, false, __('API Host or API Key is not configured.', 'woo-kontor-sync'), 0, []);
             return [
                 'success' => false,
                 'message' => __('API Host or API Key is not configured.', 'woo-kontor-sync'),
@@ -2053,7 +2053,7 @@ class WKS_Sync {
         }
 
         if (empty($shop_id)) {
-            $this->log_status_sync($trigger, false, __('Shop ID is not configured. Please select a shop in settings.', 'woo-kontor-sync'), 0, [], []);
+            $this->log_status_sync($trigger, false, __('Shop ID is not configured. Please select a shop in settings.', 'woo-kontor-sync'), 0, []);
             return [
                 'success' => false,
                 'message' => __('Shop ID is not configured.', 'woo-kontor-sync'),
@@ -2071,46 +2071,24 @@ class WKS_Sync {
         ]);
 
         if (!$result['success']) {
-            $this->log_status_sync($trigger, false, $result['message'], 0, [], []);
+            $this->log_status_sync($trigger, false, $result['message'], 0, []);
             return $result;
         }
 
         $rows = isset($result['data']) ? $result['data'] : [];
 
-        // Actionable mapping (Kontor status value => WooCommerce slug). Rows set to
-        // "Do nothing" are excluded here but still count as "defined" below.
+        // Fixed mapping (Kontor status value => WooCommerce slug).
         $status_map = $this->get_status_map();
 
-        // Every Kontor value the admin has listed (including "Do nothing"), so a
-        // genuinely-unknown status can be told apart from an intentionally-ignored one.
-        $defined_keys = [];
-        foreach ((array) get_option('wks_status_map', []) as $from => $to) {
-            $from = strtolower(trim((string) $from));
-            if ($from !== '') {
-                $defined_keys[$from] = true;
-            }
-        }
-
         $stats = [
-            'total'      => count($rows),
-            'updated'    => 0,
-            'unchanged'  => 0,
-            'discovered' => 0,
-            'skipped'    => 0,
-            'errors'     => 0,
+            'total'     => count($rows),
+            'updated'   => 0,
+            'unchanged' => 0,
+            'skipped'   => 0,
+            'errors'    => 0,
         ];
 
-        $discovered_values = [];
-
         foreach ($rows as $row) {
-            // Learn the shop's Kontor status vocabulary regardless of whether the order
-            // can be matched or is in scope. Statuses not yet in the mapping table are
-            // recorded and persisted below as "Do nothing" rows for the admin to configure.
-            $seen_status = isset($row['orderstatus']) ? strtolower(trim((string) $row['orderstatus'])) : '';
-            if ($seen_status !== '' && !isset($defined_keys[$seen_status]) && !isset($discovered_values[$seen_status])) {
-                $discovered_values[$seen_status] = true;
-            }
-
             $order_number = isset($row['ordernumber']) ? trim((string) $row['ordernumber']) : '';
             if ($order_number === '' || !ctype_digit($order_number)) {
                 $stats['skipped']++;
@@ -2149,8 +2127,7 @@ class WKS_Sync {
                             $stats['unchanged']++;
                         }
                     } else {
-                        // Either explicitly "Do nothing", or a not-yet-configured status
-                        // (added to the mapping table below) — leave the order unchanged.
+                        // Unknown Kontor status — leave the order unchanged.
                         $stats['unchanged']++;
                     }
                 }
@@ -2184,34 +2161,15 @@ class WKS_Sync {
             }
         }
 
-        // Persist newly-discovered Kontor statuses as "Do nothing" rows so they appear
-        // in the settings mapping table for the admin to configure.
-        if (!empty($discovered_values)) {
-            $stored = get_option('wks_status_map', []);
-            if (!is_array($stored)) {
-                $stored = [];
-            }
-            foreach (array_keys($discovered_values) as $new_status) {
-                if (!array_key_exists($new_status, $stored)) {
-                    $stored[$new_status] = ''; // Do nothing by default
-                }
-            }
-            update_option('wks_status_map', $stored);
-        }
-
-        $stats['discovered'] = count($discovered_values);
-
-        $duration   = round(microtime(true) - $start, 2);
-        $discovered = array_keys($discovered_values);
-        $this->log_status_sync($trigger, true, null, $duration, $stats, $discovered);
+        $duration = round(microtime(true) - $start, 2);
+        $this->log_status_sync($trigger, true, null, $duration, $stats);
 
         return [
             'success' => true,
             'message' => sprintf(
-                __('Order status sync completed. Updated: %1$d, Unchanged: %2$d, Discovered: %3$d, Skipped: %4$d, Errors: %5$d', 'woo-kontor-sync'),
+                __('Order status sync completed. Updated: %1$d, Unchanged: %2$d, Skipped: %3$d, Errors: %4$d', 'woo-kontor-sync'),
                 $stats['updated'],
                 $stats['unchanged'],
-                $stats['discovered'],
                 $stats['skipped'],
                 $stats['errors']
             ),
@@ -2220,55 +2178,30 @@ class WKS_Sync {
     }
 
     /**
-     * Actionable Kontor status value => WooCommerce status slug mapping.
+     * Fixed Kontor status value => WooCommerce status slug mapping.
      *
-     * Stored as [ kontor_value (lowercased) => wc_slug | '' ]. Returns only the rows
-     * that target a real WooCommerce status; rows set to "Do nothing" (empty target)
-     * or targeting an unknown status are excluded. Empty when nothing is mapped.
+     * Kontor's API returns exactly these four order statuses, so the mapping is
+     * hardcoded rather than configurable.
      */
+    const KONTOR_STATUS_MAP = [
+        'canceled'            => 'cancelled',        // Kontor spells it with one "l"
+        'in_progress'         => 'processing',
+        'partially_completed' => 'partial-complete', // custom status registered by this plugin
+        'completed'           => 'completed',
+    ];
+
     public function get_status_map() {
-        $stored = get_option('wks_status_map', []);
-        if (!is_array($stored)) {
-            return [];
-        }
-
-        $valid_statuses = array_map(function ($k) {
-            return str_replace('wc-', '', $k);
-        }, array_keys(wc_get_order_statuses()));
-
-        $map = [];
-        foreach ($stored as $from => $to) {
-            $from = strtolower(trim((string) $from));
-            $to   = sanitize_key((string) $to);
-
-            if ($from === '' || $to === '') {
-                continue; // no source value, or "Do nothing"
-            }
-            if (!in_array($to, $valid_statuses, true)) {
-                continue;
-            }
-
-            $map[$from] = $to;
-        }
-
-        return $map;
+        return self::KONTOR_STATUS_MAP;
     }
 
     /**
      * Log order-status sync result
      */
-    private function log_status_sync($trigger, $success, $error_message, $duration, $stats, $discovered = []) {
+    private function log_status_sync($trigger, $success, $error_message, $duration, $stats) {
         $message = $error_message;
 
         if ($success) {
             $message = sprintf(__('Order status sync completed in %s seconds', 'woo-kontor-sync'), $duration);
-            if (!empty($discovered)) {
-                $message .= ' — ' . sprintf(
-                    /* translators: %s: comma-separated list of newly discovered Kontor status values */
-                    __('Discovered new Kontor statuses (added to Settings as "Do nothing"): %s', 'woo-kontor-sync'),
-                    implode(', ', $discovered)
-                );
-            }
         }
 
         WKS()->logs->add([
