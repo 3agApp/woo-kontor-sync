@@ -4,7 +4,7 @@ Tags: woocommerce, kontor, crm, sync, products, import
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,10 @@ Images are downloaded from the configured Image Prefix URL + filename. The plugi
 The sync will fail gracefully and log the error. The watchdog cron ensures the schedule is restored if it stops working.
 
 == Changelog ==
+
+= 1.3.1 =
+* Fixed: the bundled German translations were missing from the release package, so the storefront tracking section and status labels showed English even when the site language was German. The `languages/` folder is now included in the release build.
+* Added: de_AT translation variant (all German WordPress locales now covered: de_DE, de_DE_formal, de_CH, de_CH_informal, de_AT)
 
 = 1.3.0 =
 * Changed: Kontor → WooCommerce order status mapping is now fixed (canceled → Cancelled, in_progress → Processing, partially_completed → Partially Completed, completed → Completed); the configurable Status Mapping table was removed
